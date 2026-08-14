@@ -1,33 +1,17 @@
 <script setup>
 import { ref } from 'vue'
 
-defineProps({
-  locale: String
-})
-
+defineProps({ locale: String })
 defineEmits(['platform-click'])
 
 const isPaused = ref(false)
-
-const handleTouchStart = () => {
-  isPaused.value = true
-}
-
-const handleTouchEnd = () => {
-  isPaused.value = false
-}
+const handleTouchStart = () => { isPaused.value = true }
+const handleTouchEnd = () => { isPaused.value = false }
 
 const content = {
-  'zh-CN': {
-    badge: '支持的平台',
-    title: ''
-  },
-  'en': {
-    badge: 'Supported Platforms',
-    title: ''
-  }
+  'zh-CN': { badge: '支持平台', title: '' },
+  'en': { badge: 'Supported Platforms', title: '' }
 }
-
 const getContent = (locale) => content[locale] || content['zh-CN']
 
 const allPlatforms = [
@@ -46,70 +30,40 @@ const allPlatforms = [
 ]
 
 const platformDescs = {
-  'zh-CN': [
-    '解析抖音无水印视频',
-    '解析快手无水印视频',
-    '解析B站视频',
-    '解析小红书视频',
-    '解析微博短视频',
-    '解析微视短视频',
-    '解析皮皮虾视频',
-    '解析搞笑短视频',
-    '解析西瓜短视频',
-    '解析百度系短视频',
-    '解析最右短视频',
-    '解析火山平台视频',
-  ],
-  'en': [
-    'Parse Douyin videos',
-    'Parse Kuaishou videos',
-    'Parse Bilibili videos',
-    'Parse Xiaohongshu videos',
-    'Parse Weibo videos',
-    'Parse Weishi videos',
-    'Parse Pipixia videos',
-    'Parse Funny videos',
-    'Parse Xigua videos',
-    'Parse Baidu videos',
-    'Parse Zuiyou videos',
-    'Parse Huoshan videos',
-  ]
+  'zh-CN': ['解析抖音无水印视频','解析快手无水印视频','解析B站视频','解析小红书视频','解析微博短视频','解析微视短视频','解析皮皮虾视频','解析搞笑短视频','解析西瓜短视频','解析百度系短视频','解析最右短视频','解析火山平台视频'],
+  'en': ['Parse Douyin videos','Parse Kuaishou videos','Parse Bilibili videos','Parse Xiaohongshu videos','Parse Weibo videos','Parse Weishi videos','Parse Pipixia videos','Parse Funny videos','Parse Xigua videos','Parse Baidu videos','Parse Zuiyou videos','Parse Huoshan videos']
 }
 
-const getDesc = (locale, idx) => {
-  const descs = platformDescs[locale] || platformDescs['zh-CN']
-  return descs[idx]
-}
-
+const getDesc = (locale, idx) => (platformDescs[locale] || platformDescs['zh-CN'])[idx]
 const duplicatedPlatforms = [...allPlatforms, ...allPlatforms]
 </script>
 
 <template>
-  <section id="Supported_Platforms" class="mb-20 overflow-hidden platform-section scroll-mt-16 sm:scroll-mt-18">
-    <div class="flex items-center justify-center py-6 platform-header">
-      <h3 class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-indigo-500/10 to-purple-500/10 dark:from-indigo-400/10 dark:to-purple-400/10 border border-indigo-200 dark:border-indigo-800/50 text-indigo-600 dark:text-indigo-400 text-sm font-medium">
+  <section id="Supported_Platforms" class="mb-16 overflow-hidden scroll-mt-16">
+    <div class="flex items-center justify-center py-6">
+      <h3 class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-amber-50 to-pink-50 dark:from-amber-950/30 dark:to-pink-950/30 border border-amber-200 dark:border-amber-800/40 text-amber-600 dark:text-amber-400 text-sm font-medium">
         <i class="fas fa-grid-2 text-xs"></i>
         {{ getContent(locale).badge }}
       </h3>
     </div>
 
     <div class="relative">
-      <div class="marquee-fade-left"></div>
-      <div class="marquee-fade-right"></div>
+      <div class="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-[var(--c-bg)] to-transparent z-10 pointer-events-none"></div>
+      <div class="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-[var(--c-bg)] to-transparent z-10 pointer-events-none"></div>
 
-      <div 
-        class="marquee-container"
+      <div
+        class="overflow-hidden py-6"
         @touchstart="handleTouchStart"
         @touchend="handleTouchEnd"
         @touchcancel="handleTouchEnd"
       >
-        <div 
-          class="marquee-content"
-          :class="{ 'marquee-paused': isPaused }"
+        <div
+          class="flex gap-4 animate-marquee"
+          :class="{ 'animation-play-state-paused': isPaused }"
         >
           <a
             v-for="(platform, idx) in duplicatedPlatforms"
-            :key="`platform-${idx}`"
+            :key="`p-${idx}`"
             :href="platform.url"
             target="_blank"
             rel="noopener noreferrer"
@@ -122,10 +76,8 @@ const duplicatedPlatforms = [...allPlatforms, ...allPlatforms]
               </div>
               <div class="platform-glow" :style="{ background: platform.color }"></div>
             </div>
-
             <h4 class="platform-name">{{ platform.name }}</h4>
             <p class="platform-desc">{{ getDesc(locale, idx % allPlatforms.length) }}</p>
-
             <div class="platform-hover-indicator">
               <i class="fas fa-external-link-alt text-xs"></i>
             </div>
@@ -134,13 +86,13 @@ const duplicatedPlatforms = [...allPlatforms, ...allPlatforms]
       </div>
     </div>
 
-    <div class="flex justify-center mt-8 gap-6 text-xs text-slate-400 dark:text-slate-500">
+    <div class="flex justify-center mt-6 gap-6 text-xs text-[var(--c-fg-3)]">
       <span class="flex items-center gap-1">
-        <i class="fas fa-mouse-pointer text-indigo-400"></i>
+        <i class="fas fa-mouse-pointer text-amber-400"></i>
         {{ locale === 'zh-CN' ? '悬停暂停' : 'Hover to pause' }}
       </span>
       <span class="hidden sm:flex items-center gap-1">
-        <i class="fas fa-arrows-alt-h text-purple-400"></i>
+        <i class="fas fa-arrows-alt-h text-pink-400"></i>
         {{ locale === 'zh-CN' ? '自动滚动' : 'Auto scroll' }}
       </span>
     </div>
@@ -148,133 +100,51 @@ const duplicatedPlatforms = [...allPlatforms, ...allPlatforms]
 </template>
 
 <style scoped>
-.platform-section {
-  position: relative;
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
 }
 
-.platform-header {
-  animation: platformHeaderFade 0.6s ease forwards;
-}
-
-@keyframes platformHeaderFade {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.marquee-container {
-  overflow: hidden;
-  padding: 1.5rem 0;
-  position: relative;
-}
-
-.marquee-fade-left,
-.marquee-fade-right {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 120px;
-  z-index: 10;
-  pointer-events: none;
-}
-
-.marquee-fade-left {
-  left: 0;
-  background: linear-gradient(to right, rgba(255, 255, 255, 0.95), transparent);
-}
-
-.dark .marquee-fade-left {
-  background: linear-gradient(to right, rgba(15, 23, 42, 0.95), transparent);
-}
-
-.marquee-fade-right {
-  right: 0;
-  background: linear-gradient(to left, rgba(255, 255, 255, 0.95), transparent);
-}
-
-.dark .marquee-fade-right {
-  background: linear-gradient(to left, rgba(15, 23, 42, 0.95), transparent);
-}
-
-.marquee-content {
-  display: flex;
-  gap: 1.25rem;
+.animate-marquee {
   animation: marquee 50s linear infinite;
-  -webkit-animation: marquee 50s linear infinite;
   width: max-content;
   will-change: transform;
   backface-visibility: hidden;
 }
 
-.marquee-content:hover,
-.marquee-content.marquee-paused {
+.animation-play-state-paused {
   animation-play-state: paused;
-  -webkit-animation-play-state: paused;
-}
-
-@keyframes marquee {
-  0% {
-    transform: translateX(0);
-    -webkit-transform: translateX(0);
-  }
-  100% {
-    transform: translateX(-50%);
-    -webkit-transform: translateX(-50%);
-  }
-}
-
-@-webkit-keyframes marquee {
-  0% {
-    -webkit-transform: translateX(0);
-  }
-  100% {
-    -webkit-transform: translateX(-50%);
-  }
 }
 
 .platform-card {
   position: relative;
   width: 160px;
   padding: 1.5rem 1rem;
-  background: white;
+  background: var(--c-bg-card);
   border-radius: 1.25rem;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--c-border);
   text-decoration: none;
   text-align: center;
   transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
 }
 
-.dark .platform-card {
-  background: #1e293b;
-  border-color: #334155;
-}
-
 .platform-card::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, rgba(244, 114, 182, 0.05) 100%);
   opacity: 0;
   transition: opacity 0.3s ease;
 }
 
 .platform-card:hover {
   transform: translateY(-8px) scale(1.02);
-  border-color: rgba(99, 102, 241, 0.4);
-  box-shadow:
-    0 20px 40px rgba(99, 102, 241, 0.15),
-    0 0 0 1px rgba(99, 102, 241, 0.1);
+  border-color: rgba(245, 158, 11, 0.4);
+  box-shadow: 0 20px 40px rgba(245, 158, 11, 0.15), 0 0 0 1px rgba(245, 158, 11, 0.1);
 }
 
-.platform-card:hover::before {
-  opacity: 1;
-}
+.platform-card:hover::before { opacity: 1; }
 
 .platform-icon-container {
   position: relative;
@@ -331,28 +201,18 @@ const duplicatedPlatforms = [...allPlatforms, ...allPlatforms]
 .platform-name {
   font-weight: 700;
   font-size: 0.9375rem;
-  color: #1e293b;
+  color: var(--c-fg);
   margin-bottom: 0.25rem;
   transition: color 0.3s ease;
 }
 
-.dark .platform-name {
-  color: #f1f5f9;
-}
-
-.platform-card:hover .platform-name {
-  color: #6366f1;
-}
+.platform-card:hover .platform-name { color: #f59e0b; }
 
 .platform-desc {
   font-size: 0.75rem;
-  color: #64748b;
+  color: var(--c-fg-3);
   line-height: 1.4;
   transition: color 0.3s ease;
-}
-
-.dark .platform-desc {
-  color: #94a3b8;
 }
 
 .platform-hover-indicator {
@@ -362,14 +222,14 @@ const duplicatedPlatforms = [...allPlatforms, ...allPlatforms]
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: rgba(99, 102, 241, 0.1);
+  background: rgba(245, 158, 11, 0.1);
   display: flex;
   align-items: center;
   justify-content: center;
   opacity: 0;
   transform: scale(0.8);
   transition: all 0.3s ease;
-  color: #6366f1;
+  color: #f59e0b;
 }
 
 .platform-card:hover .platform-hover-indicator {
@@ -378,40 +238,17 @@ const duplicatedPlatforms = [...allPlatforms, ...allPlatforms]
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .marquee-content {
+  .animate-marquee {
     animation: none;
     flex-wrap: wrap;
     justify-content: center;
   }
-
-  .platform-card {
-    transition: none;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) and (max-width: 768px) {
-  .marquee-content {
-    animation: marquee 50s linear infinite;
-    -webkit-animation: marquee 50s linear infinite;
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-  }
+  .platform-card { transition: none; }
 }
 
 @media (max-width: 640px) {
-  .platform-card {
-    width: 140px;
-    padding: 1.25rem 0.75rem;
-  }
-
-  .platform-icon-wrapper {
-    width: 48px;
-    height: 48px;
-  }
-
-  .platform-icon-img {
-    width: 28px;
-    height: 28px;
-  }
+  .platform-card { width: 140px; padding: 1.25rem 0.75rem; }
+  .platform-icon-wrapper { width: 48px; height: 48px; }
+  .platform-icon-img { width: 28px; height: 28px; }
 }
 </style>

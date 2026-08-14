@@ -7,5 +7,11 @@ export default defineConfig({
     alias: {
       '@': '/src'
     }
+  },
+  base: './',
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+    sourcemap: false
   }
 })

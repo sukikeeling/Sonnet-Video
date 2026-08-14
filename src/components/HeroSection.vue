@@ -14,53 +14,46 @@ const emit = defineEmits(['update:inputUrl', 'parse', 'select-platform'])
 
 const content = {
   'zh-CN': {
-    badge: 'BK-SV v3.0 · 多平台解析',
+    badge: 'Sonnet · 多平台无水印解析',
     title1: '轻松解析',
     title2: '任何',
     title3: '短视频',
-    desc: 'v3.0 全新升级！支持抖音、快手、B 站、小红书等平台，一键提取无水印视频与图集，简单免费。',
-    feature1: '无水印',
-    feature2: '高速解析',
-    feature3: '完全免费',
+    desc: '支持抖音、快手、B站、小红书等主流平台，一键提取无水印视频与图集，简单免费。',
     inputLabel: '视频链接',
     placeholder: '粘贴分享链接或含链接的文本…',
     button: '开始解析',
     loading: '正在解析…',
-    error: '解析失败',
+    error: '重新解析',
     errorTitle: '解析没有完成',
     errorHint: '请检查作品是否公开可访问，或切换平台后再试一次。',
     features: [
       { icon: 'fa-check-circle', color: 'text-emerald-500', label: '无水印' },
       { icon: 'fa-bolt', color: 'text-amber-500', label: '高速解析' },
-      { icon: 'fa-gift', color: 'text-indigo-500', label: '完全免费' }
+      { icon: 'fa-gift', color: 'text-pink-500', label: '完全免费' }
     ]
   },
   'en': {
-    badge: 'BK-SV v3.0 · Multi-Platform',
+    badge: 'Sonnet · Multi-Platform Parser',
     title1: 'Parse ',
     title2: 'Any',
     title3: ' Short Video',
-    desc: 'v3.0 Upgrade! Support Douyin, Kuaishou, Bilibili, Xiaohongshu and more. Extract videos & albums without watermark, simple and free.',
-    feature1: 'No Watermark',
-    feature2: 'Fast Parse',
-    feature3: 'Free',
+    desc: 'Support Douyin, Kuaishou, Bilibili, Xiaohongshu and more. Extract videos & albums without watermark, simple and free.',
     inputLabel: 'Video URL',
     placeholder: 'Paste a share link or text containing a link…',
     button: 'Start Parsing',
     loading: 'Parsing…',
-    error: 'Failed',
+    error: 'Retry',
     errorTitle: 'Parsing did not finish',
     errorHint: 'Check that the post is public, or switch platform and try again.',
     features: [
       { icon: 'fa-check-circle', color: 'text-emerald-500', label: 'No Watermark' },
       { icon: 'fa-bolt', color: 'text-amber-500', label: 'Fast Parse' },
-      { icon: 'fa-gift', color: 'text-indigo-500', label: 'Free' }
+      { icon: 'fa-gift', color: 'text-pink-500', label: 'Free' }
     ]
   }
 }
 
 const getContent = (locale) => content[locale] || content['zh-CN']
-
 const hasParseError = computed(() => Boolean(props.parseError))
 
 const platformTabs = {
@@ -82,45 +75,51 @@ const platformTabs = {
 
 const getPlatformTabs = (locale) => platformTabs[locale] || platformTabs['zh-CN']
 
-const selectPlatform = (key) => {
-  emit('select-platform', key)
-}
+const selectPlatform = (key) => emit('select-platform', key)
 </script>
 
 <template>
-    <section class="relative text-center py-4 sm:py-6 lg:py-8 overflow-hidden">
-    <div class="absolute inset-0 -z-10">
-      <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-gradient-radial from-indigo-500/10 via-purple-500/5 to-transparent rounded-full blur-3xl"></div>
+  <section class="relative text-center py-6 sm:py-10 lg:py-14 overflow-hidden">
+    <!-- Warm gradient orbs -->
+    <div class="absolute inset-0 -z-10 pointer-events-none">
+      <div class="absolute top-0 left-1/4 w-[500px] h-[500px] bg-gradient-radial from-amber-400/10 via-amber-300/5 to-transparent rounded-full blur-3xl"></div>
+      <div class="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-gradient-radial from-pink-400/10 via-pink-300/5 to-transparent rounded-full blur-3xl"></div>
     </div>
 
     <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-      <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800/50 text-indigo-600 dark:text-indigo-400 text-xs sm:text-sm font-medium mb-6 sm:mb-8 ux-animate-fade-in">
-        <i class="fas fa-sparkles"></i>
+      <!-- Badge -->
+      <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-amber-50 to-pink-50 dark:from-amber-950/30 dark:to-pink-950/30 border border-amber-200 dark:border-amber-800/40 text-amber-600 dark:text-amber-400 text-xs sm:text-sm font-medium mb-6 sm:mb-8 animate-fade-in">
+        <i class="fas fa-sparkles text-amber-400"></i>
         <span>{{ getContent(locale).badge }}</span>
       </div>
 
-      <h2 class="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-6 sm:mb-8 tracking-tight ux-animate-slide-up" style="animation-delay: 100ms">
-        <span class="ux-gradient-text">{{ getContent(locale).title1 }}</span>
-        <span class="text-slate-700 dark:text-slate-200">{{ getContent(locale).title2 }}</span>
-        <span class="ux-gradient-text">{{ getContent(locale).title3 }}</span>
+      <!-- Title -->
+      <h2 class="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-6 sm:mb-8 tracking-tight animate-slide-up" style="animation-delay: 100ms">
+        <span class="gradient-text">{{ getContent(locale).title1 }}</span>
+        <span class="text-[var(--c-fg)]">{{ getContent(locale).title2 }}</span>
+        <span class="gradient-text">{{ getContent(locale).title3 }}</span>
       </h2>
 
-      <p class="text-base sm:text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto mb-8 sm:mb-10 leading-relaxed ux-animate-slide-up" style="animation-delay: 200ms">
+      <!-- Description -->
+      <p class="text-base sm:text-lg text-[var(--c-fg-2)] max-w-2xl mx-auto mb-8 sm:mb-10 leading-relaxed animate-slide-up" style="animation-delay: 200ms">
         {{ getContent(locale).desc }}
       </p>
 
-      <div class="flex flex-wrap justify-center gap-4 sm:gap-6 mb-10 sm:mb-12 ux-animate-slide-up" style="animation-delay: 300ms">
+      <!-- Features -->
+      <div class="flex flex-wrap justify-center gap-4 sm:gap-6 mb-8 sm:mb-10 animate-slide-up" style="animation-delay: 300ms">
         <div
           v-for="(feature, index) in getContent(locale).features"
           :key="index"
-          class="flex items-center gap-2 text-sm sm:text-base text-slate-600 dark:text-slate-300"
+          class="flex items-center gap-2 text-sm sm:text-base text-[var(--c-fg-2)]"
         >
           <i :class="['fas', feature.icon, feature.color]"></i>
           <span>{{ feature.label }}</span>
         </div>
       </div>
 
-      <div class="max-w-xl sm:max-w-2xl mx-auto ux-animate-slide-up" style="animation-delay: 400ms">
+      <!-- Input Area -->
+      <div class="max-w-xl sm:max-w-2xl mx-auto animate-slide-up" style="animation-delay: 400ms">
+        <!-- Platform Tabs -->
         <div class="flex flex-wrap justify-center gap-2 mb-4">
           <button
             v-for="tab in getPlatformTabs(locale)"
@@ -129,8 +128,8 @@ const selectPlatform = (key) => {
             :class="[
               'px-3 py-1.5 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5',
               currentPlatform === tab.key
-                ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/25'
-                : 'bg-indigo-50 dark:bg-slate-800 text-indigo-600 dark:text-slate-300 hover:bg-indigo-100 dark:hover:bg-slate-700 border border-indigo-200 dark:border-slate-700'
+                ? 'bg-gradient-to-r from-amber-500 to-pink-500 text-white shadow-lg shadow-amber-500/25'
+                : 'bg-[var(--c-bg-elevated)] text-[var(--c-fg-2)] hover:text-amber-500 border border-[var(--c-border)] hover:border-amber-400'
             ]"
           >
             <i :class="['fas', tab.icon]"></i>
@@ -138,35 +137,37 @@ const selectPlatform = (key) => {
           </button>
         </div>
 
+        <!-- Search Input -->
         <div class="relative group">
-          <div class="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-2xl blur opacity-20 group-hover:opacity-40 transition-opacity duration-300 -z-10"></div>
-          <div class="relative flex items-center bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xl shadow-slate-200/50 dark:shadow-slate-950/50 overflow-hidden transition-all duration-300 focus-within:border-indigo-500 dark:focus-within:border-indigo-400 focus-within:ring-4 focus-within:ring-indigo-500/10">
+          <div class="absolute -inset-0.5 bg-gradient-to-r from-amber-400 via-amber-500 to-pink-500 rounded-2xl blur opacity-20 group-hover:opacity-30 transition-opacity duration-300 -z-10"></div>
+          <div class="relative flex items-center glass-card overflow-hidden transition-all duration-300 focus-within:border-amber-400 focus-within:ring-4 focus-within:ring-amber-500/10">
             <input
               :value="inputUrl"
               @input="emit('update:inputUrl', $event.target.value)"
               @keyup.enter="emit('parse')"
               type="text"
               :placeholder="getContent(locale).placeholder"
-              class="flex-1 px-4 sm:px-6 py-4 sm:py-5 bg-transparent text-slate-800 dark:text-slate-100 text-sm sm:text-base placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none"
+              class="flex-1 px-4 sm:px-6 py-4 sm:py-5 bg-transparent text-[var(--c-fg)] text-sm sm:text-base placeholder:text-[var(--c-fg-3)] outline-none"
               :disabled="isLoading"
             />
             <button
               @click="emit('parse')"
               :disabled="isLoading"
-              class="m-1 sm:m-1.5 px-5 sm:px-7 py-2.5 sm:py-3 rounded-xl font-semibold flex items-center gap-2 transition-all duration-300 whitespace-nowrap enterprise-btn"
+              class="m-1 sm:m-1.5 px-5 sm:px-7 py-2.5 sm:py-3 rounded-xl font-semibold flex items-center gap-2 transition-all duration-300 whitespace-nowrap"
               :class="isLoading
-                ? 'bg-slate-400 dark:bg-slate-500 cursor-not-allowed opacity-60'
+                ? 'bg-[var(--c-fg-3)] cursor-not-allowed opacity-60 text-white'
                 : isError
-                  ? 'bg-rose-600 hover:bg-rose-700 dark:bg-rose-700 dark:hover:bg-rose-800 text-white shadow-lg shadow-rose-500/20 dark:shadow-rose-900/30 border border-rose-500/30 dark:border-rose-600/30 error-state-btn'
-                  : 'bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/25 dark:shadow-indigo-900/40 border border-indigo-500/40 dark:border-indigo-500/30 parse-state-btn'"
+                  ? 'bg-gradient-to-r from-rose-500 to-pink-500 text-white shadow-lg shadow-rose-500/20 hover:shadow-xl hover:shadow-rose-500/30 hover:-translate-y-0.5'
+                  : 'bg-gradient-to-r from-amber-500 to-pink-500 text-white shadow-lg shadow-amber-500/20 hover:shadow-xl hover:shadow-amber-500/30 hover:-translate-y-0.5'"
             >
-              <i :class="['fas text-xs sm:text-sm transition-transform duration-300', isLoading ? 'fa-spinner fa-spin' : isError ? 'fa-exclamation-circle' : 'fa-bolt']"></i>
+              <i :class="['fas text-xs sm:text-sm transition-all', isLoading ? 'fa-spinner fa-spin' : isError ? 'fa-exclamation-circle' : 'fa-bolt']"></i>
               <span class="hidden sm:inline text-sm">{{ isLoading ? getContent(locale).loading : isError ? getContent(locale).error : getContent(locale).button }}</span>
               <span class="sm:hidden text-sm">{{ isLoading ? '...' : isError ? '!' : '>' }}</span>
             </button>
           </div>
         </div>
 
+        <!-- Error Panel -->
         <Transition name="parse-error">
           <div
             v-if="hasParseError"
@@ -185,8 +186,8 @@ const selectPlatform = (key) => {
           </div>
         </Transition>
 
-        <p class="text-xs text-slate-400 dark:text-slate-500 mt-3 px-2">
-          <i class="fas fa-info-circle mr-1"></i>
+        <p class="text-xs text-[var(--c-fg-3)] mt-3 px-2">
+          <i class="fas fa-info-circle mr-1 text-amber-400"></i>
           {{ locale === 'zh-CN' ? '支持抖音、快手、B站、小红书等平台' : 'Support Douyin, Kuaishou, Bilibili, Xiaohongshu & more' }}
         </p>
       </div>
@@ -197,152 +198,6 @@ const selectPlatform = (key) => {
 <style scoped>
 .bg-gradient-radial {
   background: radial-gradient(circle, var(--tw-gradient-stops));
-}
-
-.ux-gradient-text {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6, #ec4899);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.ux-animate-fade-in {
-  animation: uxFadeIn 0.5s ease forwards;
-  opacity: 0;
-}
-
-.ux-animate-slide-up {
-  animation: uxSlideUp 0.6s ease forwards;
-  opacity: 0;
-}
-
-@keyframes uxFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes uxSlideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ux-animate-fade-in,
-  .ux-animate-slide-up {
-    animation: none;
-    opacity: 1;
-  }
-}
-
-.enterprise-btn {
-  position: relative;
-  overflow: hidden;
-  font-family: inherit;
-  letter-spacing: 0.02em;
-}
-
-.enterprise-btn::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.15) 0%,
-    rgba(255, 255, 255, 0) 50%
-  );
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.enterprise-btn:hover::before {
-  opacity: 1;
-}
-
-.parse-state-btn {
-  background: linear-gradient(
-    180deg,
-    #6366f1 0%,
-    #4f46e5 50%,
-    #4338ca 100%
-  );
-}
-
-.parse-state-btn:hover {
-  background: linear-gradient(
-    180deg,
-    #818cf8 0%,
-    #6366f1 50%,
-    #4f46e5 100%
-  );
-  transform: translateY(-2px);
-  box-shadow:
-    0 8px 20px rgba(99, 102, 241, 0.35),
-    0 0 0 1px rgba(255, 255, 255, 0.1) inset;
-}
-
-.parse-state-btn:active {
-  transform: translateY(0);
-  background: linear-gradient(
-    180deg,
-    #4f46e5 0%,
-    #4338ca 50%,
-    #3730a3 100%
-  );
-  transition-duration: 0.1s;
-}
-
-.parse-state-btn .fa-bolt {
-  animation: subtlePulse 2s ease-in-out infinite;
-}
-
-@keyframes subtlePulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.8; transform: scale(0.95); }
-}
-
-.error-state-btn {
-  background: linear-gradient(
-    180deg,
-    #f43f5e 0%,
-    #e11d48 50%,
-    #be123c 100%
-  );
-}
-
-.error-state-btn:hover {
-  background: linear-gradient(
-    180deg,
-    #fb7185 0%,
-    #f43f5e 50%,
-    #e11d48 100%
-  );
-  transform: translateY(-2px);
-  box-shadow:
-    0 8px 20px rgba(244, 63, 94, 0.35),
-    0 0 0 1px rgba(255, 255, 255, 0.1) inset;
-}
-
-.error-state-btn:active {
-  transform: translateY(0);
-  background: linear-gradient(
-    180deg,
-    #e11d48 0%,
-    #be123c 50%,
-    #9f1239 100%
-  );
-  transition-duration: 0.1s;
 }
 
 .parse-error-panel {
@@ -383,55 +238,19 @@ const selectPlatform = (key) => {
   color: #fb7185;
 }
 
-.parse-error-copy {
-  min-width: 0;
-}
-
-.parse-error-title {
-  margin: 0;
-  font-size: 0.875rem;
-  font-weight: 700;
-  line-height: 1.35;
-}
-
-.parse-error-message {
-  margin: 0.25rem 0 0;
-  font-size: 0.8125rem;
-  line-height: 1.5;
-  word-break: break-word;
-}
-
-.parse-error-hint {
-  margin: 0.375rem 0 0;
-  font-size: 0.75rem;
-  line-height: 1.45;
-  color: rgba(136, 19, 55, 0.72);
-}
-
-:global(.dark) .parse-error-hint {
-  color: rgba(254, 205, 211, 0.72);
-}
+.parse-error-copy { min-width: 0; }
+.parse-error-title { margin: 0; font-size: 0.875rem; font-weight: 700; line-height: 1.35; }
+.parse-error-message { margin: 0.25rem 0 0; font-size: 0.8125rem; line-height: 1.5; word-break: break-word; }
+.parse-error-hint { margin: 0.375rem 0 0; font-size: 0.75rem; line-height: 1.45; color: rgba(136, 19, 55, 0.72); }
+:global(.dark) .parse-error-hint { color: rgba(254, 205, 211, 0.72); }
 
 .parse-error-enter-active,
 .parse-error-leave-active {
   transition: opacity 0.22s ease, transform 0.22s ease;
 }
-
 .parse-error-enter-from,
 .parse-error-leave-to {
   opacity: 0;
   transform: translateY(-6px);
-}
-
-@media (max-width: 480px) {
-  .enterprise-btn {
-    padding-left: 0.875rem;
-    padding-right: 0.875rem;
-  }
-
-  .parse-error-panel {
-    border-radius: 0.875rem;
-    padding: 0.75rem;
-  }
 }
 </style>

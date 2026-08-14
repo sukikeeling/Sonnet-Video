@@ -1,7 +1,8 @@
 {
-  "name": "bk-sv-vue3",
-  "version": "3.0.0",
+  "name": "sonnet-video",
+  "version": "1.0.0",
   "private": true,
+  "description": "Sonnet - 短视频去水印解析工具",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,6 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
     "jszip": "^3.10.1",
     "pinia": "^2.1.0",
     "vue": "^3.4.0",
