@@ -1,4 +1,4 @@
-# Sonnet · 短视频解析工具
+# Sonnet Video · 短视频解析工具
 
 [![GitHub Stars](https://img.shields.io/github/stars/sukikeeling/Sonnet-Video?style=social)](https://github.com/sukikeeling/Sonnet-Video)
 [![License](https://img.shields.io/github/license/sukikeeling/Sonnet-Video)](https://github.com/sukikeeling/Sonnet-Video/blob/main/LICENSE)
@@ -22,7 +22,7 @@
 
 ## 🌟 项目简介
 
-Sonnet 是一款简洁高效的在线资源解析工具。用户只需粘贴内容分享链接，即可获取原始画质的媒体文件，无需繁琐操作。
+Sonnet Video 是一款简洁高效的在线资源解析工具。用户只需粘贴内容分享链接，即可获取原始画质的媒体文件，无需繁琐操作。
 
 > 💡 本项目基于 [BK-SV v3.0](https://github.com/jiuhunwl/shortvideo-html)（作者 BugPk & JH-Ahua）二次开发，在保留核心解析能力的基础上，对 UI 和交互进行了全面重设计，并加入 Android 原生打包支持。
 
@@ -35,7 +35,7 @@ Sonnet 是一款简洁高效的在线资源解析工具。用户只需粘贴内�
 | 🔓 简单免费 | 无需注册，打开即用 |
 | 🎨 全新视觉 | 琥珀珊瑚暖色系，支持浅色/深色模式自动切换 |
 | 🌍 多语言支持 | 中文、English |
-| 📥 批量下载 | 支持打包下载多个资源，带实时进度 |
+| 📥 批量下载 | 全部资源并发单文件下载原格式（不打包 zip），带实时进度 |
 | 📱 原生 APK | 通过 Capacitor 构建 Android 原生应用 |
 
 ---
@@ -45,10 +45,10 @@ Sonnet 是一款简洁高效的在线资源解析工具。用户只需粘贴内�
 | 分类 | 技术 | 说明 |
 |------|------|------|
 | 前端框架 | Vue 3 | 渐进式 JavaScript 框架 |
-| 构建工具 | Vite 6 | 下一代前端构建工具 |
+| 构建工具 | Vite 5 | 下一代前端构建工具 |
 | 状态管理 | Pinia 2 | Vue 官方状态管理库 |
 | 样式框架 | Tailwind CSS 3 | 实用优先的 CSS 框架 |
-| 移动端 | Capacitor 7 | 原生 Android 容器 |
+| 移动端 | Capacitor 8 | 原生 Android 容器 |
 
 ---
 
@@ -60,26 +60,49 @@ Sonnet 是一款简洁高效的在线资源解析工具。用户只需粘贴内�
 |------|------|------|
 | Node.js | >= 18.0.0 | JavaScript 运行环境 |
 | npm | >= 9.0.0 | 包管理器 |
-| JDK | 21 | Android 构建所需 |
-| Android SDK | 36 | Android 构建所需 |
+| JDK | **21+** | Android 构建必需（Kotlin 2.2.20 要求；JDK 17 会报"无效的源发行版：21"） |
+| Android SDK | compileSdk 36 / targetSdk 36 / minSdk 24 | Android 构建必需 |
 
-### 安装与运行
+### 安装与构建（完整复现步骤）
+
+> ⚠️ 仓库里 `android/app/src/main/assets/`（Capacitor 同步产物）**不入库**，clone 后必须依次执行下面 1-4 步，直接跑 gradlew 会因缺少 web 资源而失败。
 
 ```bash
-# 安装依赖
+# 1. 安装依赖
 npm install
 
-# 开发模式（浏览器）
-npm run dev
-# 访问 http://localhost:5173
-
-# 生产构建
+# 2. 生产构建（生成 dist/）
 npm run build
 
-# 构建 Android APK（需提前配置 JDK 与 SDK）
+# 3. 同步 web 资源到 Android 工程（关键步骤，生成 android/app/src/main/assets/public/）
+npx cap sync android
+
+# 4. 构建 APK
 cd android
 ./gradlew assembleDebug
+
+# APK 输出：android/app/build/outputs/apk/debug/app-debug.apk
 ```
+
+### 本机硬编码配置（clone 后必须改）
+
+以下配置是作者本机环境，已入库或未入库，其他人 clone 后需按自己环境调整：
+
+| 文件 | 内容 | 说明 |
+|------|------|------|
+| `android/gradle.properties` | `org.gradle.java.home=D\:/jdk21/jdk-21.0.12+8` | **必须改**为自己的 JDK 21 路径，否则 Gradle 直接失败 |
+| `android/gradle.properties` | `systemProp.http(s).proxyHost=127.0.0.1` / `proxyPort=10809` | 作者本机代理；无代理环境请删除这 4 行，否则构建会走不存在的代理 |
+| `android/local.properties` | `sdk.dir=D\:\\android-sdk` | **不入库**，需自行创建并指向你的 Android SDK（或配置 `ANDROID_HOME` 环境变量） |
+| `android/build.gradle` | 阿里云镜像 `maven.aliyun.com` 优先 | 已配置，国内网络加速用；国外网络可删除 |
+
+### 开发模式（浏览器）
+
+```bash
+npm run dev
+# 访问 http://localhost:5173
+```
+
+> 解析依赖第三方服务 `api.bugpk.com`（见 `src/App.vue` 的 `PLATFORM_API_MAP`），如服务不可用可自行替换为其他解析接口。
 
 ---
 
@@ -113,10 +136,10 @@ cd android
 
 | 功能 | 说明 |
 |------|------|
-| 📦 单文件下载 | 下载单个视频或图片文件 |
-| 📁 批量打包 | 全部资源打包为 ZIP 下载 |
-| 📊 实时进度 | 显示下载进度与速度 |
-| ⏸️ 暂停/取消 | 支持暂停和取消下载任务 |
+| 📦 单文件下载 | 下载单个视频/图片/实况文件，图片集每张图有独立下载按钮 |
+| 📁 批量下载 | 全部资源**并发单文件下载原格式**（webp/png/jpg/mp4），逐个保存到 `文档/sonnet/`，系统自动识别格式，**不打包 zip、无需解压** |
+| 📊 实时进度 | 显示每个任务的下载进度与速度 |
+| ⏹️ 取消 | 支持取消下载任务 |
 
 ---
 

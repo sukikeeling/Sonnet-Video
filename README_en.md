@@ -1,4 +1,4 @@
-# Sonnet · Media Resource Parser
+# Sonnet Video · Media Resource Parser
 
 [![GitHub Stars](https://img.shields.io/github/stars/sukikeeling/Sonnet-Video?style=social)](https://github.com/sukikeeling/Sonnet-Video)
 [![License](https://img.shields.io/github/license/sukikeeling/Sonnet-Video)](https://github.com/sukikeeling/Sonnet-Video/blob/main/LICENSE)
@@ -22,7 +22,7 @@
 
 ## 🌟 Project Overview
 
-Sonnet is a clean and efficient online media resource parser. Simply paste a share link to retrieve original-quality media files with no watermark. No registration required.
+Sonnet Video is a clean and efficient online media resource parser. Simply paste a share link to retrieve original-quality media files with no watermark. No registration required.
 
 > 💡 This project is a fork of [BK-SV v3.0](https://github.com/jiuhunwl/shortvideo-html) by BugPk & JH-Ahua. It retains the core parsing capability while delivering a complete UI redesign, brand refresh, and native Android APK support via Capacitor.
 
@@ -35,7 +35,7 @@ Sonnet is a clean and efficient online media resource parser. Simply paste a sha
 | 🔓 Free & Simple | No registration, use directly |
 | 🎨 Fresh Look | Warm amber-coral palette, light/dark mode |
 | 🌍 Multi-language | Chinese, English |
-| 📥 Batch Download | Pack and download with live progress |
+| 📥 Batch Download | Download all as individual original-format files concurrently (no ZIP), with live progress |
 | 📱 Native APK | Android app via Capacitor |
 
 ---
@@ -45,10 +45,10 @@ Sonnet is a clean and efficient online media resource parser. Simply paste a sha
 | Category | Technology | Description |
 |----------|------------|-------------|
 | Framework | Vue 3 | Progressive JavaScript framework |
-| Build Tool | Vite 6 | Next-gen frontend tooling |
+| Build Tool | Vite 5 | Next-gen frontend tooling |
 | State Mgmt | Pinia 2 | Vue official state management |
 | CSS | Tailwind CSS 3 | Utility-first CSS framework |
-| Mobile | Capacitor 7 | Native Android container |
+| Mobile | Capacitor 8 | Native Android container |
 
 ---
 
@@ -60,26 +60,47 @@ Sonnet is a clean and efficient online media resource parser. Simply paste a sha
 |------------|---------|------|
 | Node.js | >= 18.0.0 | JavaScript runtime |
 | npm | >= 9.0.0 | Package manager |
-| JDK | 21 | Required for Android build |
-| Android SDK | 36 | Required for Android build |
+| JDK | **21+** | Required for Android build (Kotlin 2.2.20; JDK 17 fails with "invalid source release: 21") |
+| Android SDK | compileSdk 36 / targetSdk 36 / minSdk 24 | Required for Android build |
 
-### Install & Run
+### Install & Build (full reproduction steps)
+
+> ⚠️ `android/app/src/main/assets/` (Capacitor sync output) is **NOT committed**. After cloning you MUST run steps 1-4 below in order — running gradlew directly fails due to missing web assets.
 
 ```bash
-# Install dependencies
+# 1. Install dependencies
 npm install
 
-# Development mode (browser)
-npm run dev
-# Visit http://localhost:5173
-
-# Production build
+# 2. Production build (generates dist/)
 npm run build
 
-# Build Android APK (JDK & SDK required)
+# 3. Sync web assets into the Android project (critical; generates android/app/src/main/assets/public/)
+npx cap sync android
+
+# 4. Build the APK
 cd android
 ./gradlew assembleDebug
+
+# APK output: android/app/build/outputs/apk/debug/app-debug.apk
 ```
+
+### Machine-specific committed config (adjust after cloning)
+
+| File | Content | Note |
+|------|---------|------|
+| `android/gradle.properties` | `org.gradle.java.home=D\:/jdk21/jdk-21.0.12+8` | **Must change** to your own JDK 21 path |
+| `android/gradle.properties` | `systemProp.http(s).proxyHost=127.0.0.1` / `proxyPort=10809` | Author's local proxy; remove these 4 lines if you have no proxy |
+| `android/local.properties` | `sdk.dir=D\:\\android-sdk` | **Not committed**; create it pointing to your SDK (or set `ANDROID_HOME`) |
+| `android/build.gradle` | Aliyun maven mirror first | Configured for CN networks; can be removed elsewhere |
+
+### Development mode (browser)
+
+```bash
+npm run dev
+# Visit http://localhost:5173
+```
+
+> Parsing depends on the third-party service `api.bugpk.com` (see `PLATFORM_API_MAP` in `src/App.vue`); replace it if the service goes down.
 
 ---
 
@@ -113,10 +134,10 @@ Paste link → Auto-detect source → Click parse → Get original media
 
 | Feature | Description |
 |---------|-------------|
-| 📦 Single File | Download video or image |
-| 📁 Batch ZIP | Package all as ZIP |
-| 📊 Live Progress | Speed and percentage |
-| ⏸️ Pause/Cancel | Cancel anytime |
+| 📦 Single File | Download a single video/image/live file; each gallery image has its own download button |
+| 📁 Batch | All resources downloaded **concurrently as individual original-format files** (webp/png/jpg/mp4), saved to `Documents/sonnet/` — no ZIP, no unzip needed |
+| 📊 Live Progress | Speed and percentage per task |
+| ⏹️ Cancel | Cancel a download anytime |
 
 ---
 
