@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, nextTick, watch, computed } from 'vue'
 import JSZip from 'jszip'
+import { Filesystem, Directory } from '@capacitor/filesystem'
 import { useVideoStore } from './stores/video'
 import HeaderNav from './components/HeaderNav.vue'
 import HeroSection from './components/HeroSection.vue'
@@ -18,6 +19,51 @@ import { useI18n } from './composables/useI18n'
 
 const videoStore = useVideoStore()
 const { t, locale } = useI18n()
+
+/* ===== Capacitor 原生下载支持 =====
+   网页版用 <a download> 触发浏览器下载；
+   APK 内 WebView 不支持 <a download>（点了没反应/显示成功但无文件），
+   必须通过原生 Filesystem 写入手机存储。 */
+const isNative = () => typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform?.()
+
+const blobToBase64 = (blob) => new Promise((resolve, reject) => {
+  const reader = new FileReader()
+  reader.onload = () => resolve(String(reader.result).split(',')[1] || '')
+  reader.onerror = () => reject(new Error('Blob 转 Base64 失败'))
+  reader.readAsDataURL(blob)
+})
+
+// 原生保存到 文档/sonnet/ 目录，返回显示路径（失败返回 null）
+const saveBlobNative = async (blob, filename) => {
+  try {
+    const base64 = await blobToBase64(blob)
+    const dir = Directory.Documents
+    try { await Filesystem.mkdir({ path: 'sonnet', directory: dir, recursive: true }) } catch (e) { /* 已存在 */ }
+    await Filesystem.writeFile({ path: `sonnet/${filename}`, data: base64, directory: dir, recursive: true })
+    return `文档/sonnet/${filename}`
+  } catch (e) {
+    console.error('原生保存失败:', e)
+    return null
+  }
+}
+
+// 浏览器下载（网页版）
+const triggerBrowserDownload = (blob, filename) => {
+  const blobUrl = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = blobUrl; a.download = filename || 'download'
+  document.body.appendChild(a); a.click()
+  document.body.removeChild(a); URL.revokeObjectURL(blobUrl)
+}
+
+// 统一保存入口：原生写文件，网页走浏览器下载；返回保存路径（网页返回文件名）
+const saveBlob = async (blob, filename) => {
+  if (isNative()) {
+    return await saveBlobNative(blob, filename)
+  }
+  triggerBrowserDownload(blob, filename)
+  return filename
+}
 
 const isDark = ref(false)
 
@@ -304,22 +350,26 @@ const downloadFile = async (url, filename, downloadId) => {
       }
     }
     const blob = new Blob(chunks)
-    const blobUrl = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = blobUrl; a.download = filename || 'download'
-    document.body.appendChild(a); a.click()
-    document.body.removeChild(a); URL.revokeObjectURL(blobUrl)
+    const savedPath = await saveBlob(blob, filename || 'download')
+    if (isNative() && !savedPath) {
+      throw new Error('原生存储写入失败')
+    }
     videoStore.updateDownload(downloadId, { status: 'completed', statusText: '已完成', percent: 100, loaded: total, total })
+    if (isNative() && savedPath) {
+      showToast(`已保存到 ${savedPath}`, 'success', 6000)
+    }
   } catch (e) {
     if (e.name === 'AbortError') {
       videoStore.updateDownload(downloadId, { status: 'cancelled', statusText: '已取消' })
     } else {
       console.error('Download error:', e)
       videoStore.updateDownload(downloadId, { status: 'failed', statusText: '下载失败', error: e.message })
-      const a = document.createElement('a')
-      a.href = url; a.download = filename || 'download'; a.target = '_blank'; a.rel = 'noopener noreferrer'
-      document.body.appendChild(a); a.click()
-      document.body.removeChild(a)
+      if (!isNative()) {
+        const a = document.createElement('a')
+        a.href = url; a.download = filename || 'download'; a.target = '_blank'; a.rel = 'noopener noreferrer'
+        document.body.appendChild(a); a.click()
+        document.body.removeChild(a)
+      }
     }
   }
 }
@@ -402,13 +452,11 @@ const downloadAll = async () => {
       videoStore.updateDownload(downloadId, { percent: 70 + Math.round(metadata.percent * 0.3), statusText: `压缩中 ${Math.round(metadata.percent)}%` })
     })
     videoStore.updateDownload(downloadId, { percent: 95, statusText: '正在下载...' })
-    const zipUrl = URL.createObjectURL(zipBlob)
-    const a = document.createElement('a')
-    a.href = zipUrl; a.download = zipFilename
-    document.body.appendChild(a); a.click()
-    document.body.removeChild(a); URL.revokeObjectURL(zipUrl)
+    const savedPath = await saveBlob(zipBlob, zipFilename)
+    if (isNative() && !savedPath) throw new Error('原生存储写入失败')
     videoStore.updateDownload(downloadId, { status: 'completed', statusText: '已完成', percent: 100 })
-    showToast('下载完成')
+    if (isNative() && savedPath) showToast(`已保存到 ${savedPath}`, 'success', 6000)
+    else showToast('下载完成')
   } catch (e) {
     console.error(e)
     videoStore.updateDownload(downloadId, { status: 'failed', statusText: '下载失败', error: e.message })
@@ -458,14 +506,12 @@ const downloadAllLivePhotos = async () => {
     }
     videoStore.updateDownload(downloadId, { percent: 90, statusText: '生成压缩包...' })
     const zipBlob = await zip.generateAsync({ type: 'blob' })
-    const blobUrl = URL.createObjectURL(zipBlob)
-    const a = document.createElement('a')
-    a.href = blobUrl; a.download = zipFilename
-    document.body.appendChild(a); a.click()
-    document.body.removeChild(a); URL.revokeObjectURL(blobUrl)
+    const savedPath = await saveBlob(zipBlob, zipFilename)
+    if (isNative() && !savedPath) throw new Error('原生存储写入失败')
     videoStore.updateDownload(downloadId, { status: 'completed', percent: 100, statusText: '下载完成' })
     setTimeout(() => videoStore.removeDownload(downloadId), 3000)
-    showToast(`已下载 ${photos.length} 组实况文件`)
+    if (isNative() && savedPath) showToast(`已保存到 ${savedPath}`, 'success', 5000)
+    else showToast(`已下载 ${photos.length} 组实况文件`)
   } catch (e) {
     console.error('下载失败:', e)
     videoStore.updateDownload(downloadId, { status: 'failed', statusText: '下载失败' })
@@ -492,14 +538,12 @@ const downloadAllLiveCovers = async () => {
     }
     videoStore.updateDownload(downloadId, { percent: 95, statusText: '生成压缩包...' })
     const zipBlob = await zip.generateAsync({ type: 'blob' })
-    const blobUrl = URL.createObjectURL(zipBlob)
-    const a = document.createElement('a')
-    a.href = blobUrl; a.download = zipFilename
-    document.body.appendChild(a); a.click()
-    document.body.removeChild(a); URL.revokeObjectURL(blobUrl)
+    const savedPath = await saveBlob(zipBlob, zipFilename)
+    if (isNative() && !savedPath) throw new Error('原生存储写入失败')
     videoStore.updateDownload(downloadId, { status: 'completed', percent: 100, statusText: '下载完成' })
     setTimeout(() => videoStore.removeDownload(downloadId), 3000)
-    showToast(`已下载 ${photos.length} 张封面`)
+    if (isNative() && savedPath) showToast(`已保存到 ${savedPath}`, 'success', 5000)
+    else showToast(`已下载 ${photos.length} 张封面`)
   } catch (e) {
     console.error('下载失败:', e)
     videoStore.updateDownload(downloadId, { status: 'failed', statusText: '下载失败' })

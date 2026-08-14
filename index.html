@@ -8,11 +8,14 @@
     <meta name="description" content="Sonnet - 短视频图集去水印工具，支持抖音、快手、B站、小红书、微博、微视等各大平台。">
     <meta name="keywords" content="短视频解析,短视频去水印,抖音解析,抖音去水印,快手解析,小红书解析,B站解析,图集解析,无水印下载">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'><stop offset='0%25' stop-color='%23f59e0b'/><stop offset='100%25' stop-color='%23f472b6'/></linearGradient></defs><circle cx='50' cy='50' r='45' fill='url(%23g)'/><text x='50' y='62' text-anchor='middle' fill='white' font-size='38' font-weight='bold' font-family='sans-serif'>S</text></svg>" />
-    <link rel="stylesheet" href="https://static.esa.ifphp.com/css/all.min.css" />
-    <link rel="stylesheet" href="https://static.esa.ifphp.com/css/swiper-bundle.min.css" />
+    <!-- CDN 换 jsdelivr：static.esa.ifphp.com 在手机 WebView 常加载失败导致图标缺失/按钮失效 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.2/css/all.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
   </head>
   <body>
     <div id="app"></div>
+    <!-- Swiper JS：之前缺失导致图片轮播初始化失败（window.Swiper 未定义） -->
+    <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
