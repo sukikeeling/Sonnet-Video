@@ -1,8 +1,8 @@
 # Sonnet · 短视频解析工具
 
-[![GitHub Stars](https://img.shields.io/github/stars/sukikeeling/BK-SV-v3.0-Personal?style=social)](https://github.com/sukikeeling/BK-SV-v3.0-Personal)
-[![License](https://img.shields.io/github/license/sukikeeling/BK-SV-v3.0-Personal)](https://github.com/sukikeeling/BK-SV-v3.0-Personal/blob/main/LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0-amber)](https://github.com/sukikeeling/BK-SV-v3.0-Personal)
+[![GitHub Stars](https://img.shields.io/github/stars/sukikeeling/Sonnet-Video?style=social)](https://github.com/sukikeeling/Sonnet-Video)
+[![License](https://img.shields.io/github/license/sukikeeling/Sonnet-Video)](https://github.com/sukikeeling/Sonnet-Video/blob/main/LICENSE)
+[![Version](https://img.shields.io/badge/version-1.0-amber)](https://github.com/sukikeeling/Sonnet-Video)
 
 [English](README_en.md) | [中文](#项目简介)
 
