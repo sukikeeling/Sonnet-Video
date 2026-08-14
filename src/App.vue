@@ -1,6 +1,5 @@
 <script setup>
 import { ref, onMounted, nextTick, watch, computed } from 'vue'
-import JSZip from 'jszip'
 import { Filesystem, Directory } from '@capacitor/filesystem'
 import { useVideoStore } from './stores/video'
 import HeaderNav from './components/HeaderNav.vue'
@@ -121,6 +120,30 @@ const getDownloadFilename = (url, ext) => {
   const count = downloadCounter.get(base) || 0
   downloadCounter.set(base, count + 1)
   return `${base}_${count + 1}.${ext}`
+}
+
+// 从 URL 提取原始扩展名（保留原格式：webp/png/jpg/mp4...），无扩展名时用兜底
+const getUrlExt = (url, fallback = 'jpg') => {
+  try {
+    const path = new URL(url).pathname
+    const m = path.match(/\.([a-zA-Z0-9]{2,5})$/)
+    if (m) return m[1].toLowerCase()
+  } catch (e) { /* 非法 URL 走兜底 */ }
+  return fallback
+}
+
+// 并发执行器：最多 limit 个任务同时跑，逐个启动直到全部完成
+const runConcurrent = async (items, limit, worker) => {
+  const results = []
+  let index = 0
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (index < items.length) {
+      const i = index++
+      results[i] = await worker(items[i], i)
+    }
+  })
+  await Promise.all(runners)
+  return results
 }
 
 const PLATFORM_API_MAP = {
@@ -321,8 +344,8 @@ const parseVideo = async () => {
   }
 }
 
-const downloadFile = async (url, filename, downloadId) => {
-  if (!url) return
+const downloadFile = async (url, filename, downloadId, options = {}) => {
+  if (!url) return 'failed'
   const abortController = new AbortController()
   if (downloadId) videoStore.updateDownload(downloadId, { abortController })
   try {
@@ -355,12 +378,14 @@ const downloadFile = async (url, filename, downloadId) => {
       throw new Error('原生存储写入失败')
     }
     videoStore.updateDownload(downloadId, { status: 'completed', statusText: '已完成', percent: 100, loaded: total, total })
-    if (isNative() && savedPath) {
+    if (isNative() && savedPath && !options.silent) {
       showToast(`已保存到 ${savedPath}`, 'success', 6000)
     }
+    return 'completed'
   } catch (e) {
     if (e.name === 'AbortError') {
       videoStore.updateDownload(downloadId, { status: 'cancelled', statusText: '已取消' })
+      return 'cancelled'
     } else {
       console.error('Download error:', e)
       videoStore.updateDownload(downloadId, { status: 'failed', statusText: '下载失败', error: e.message })
@@ -370,6 +395,7 @@ const downloadFile = async (url, filename, downloadId) => {
         document.body.appendChild(a); a.click()
         document.body.removeChild(a)
       }
+      return 'failed'
     }
   }
 }
@@ -391,77 +417,40 @@ const downloadBackupVideo = (backup) => {
   }
 }
 
+// 并发逐个保存全部图片（原格式，不打包 zip）
 const downloadAllImages = async () => {
   if (!videoStore.resultData?.images?.length) return
   const images = videoStore.resultData.images
-  for (let i = 0; i < images.length; i++) {
-    const filename = getDownloadFilename(images[i], 'jpg')
-    const downloadId = videoStore.addDownload({ filename, url: images[i] })
-    downloadFile(images[i], filename, downloadId)
-    await new Promise(r => setTimeout(r, 300))
-  }
-  showToast(`成功添加 ${images.length} 个下载任务`)
+  const results = await runConcurrent(images, 3, async (url) => {
+    const filename = getDownloadFilename(url, getUrlExt(url, 'jpg'))
+    const downloadId = videoStore.addDownload({ filename, url })
+    return downloadFile(url, filename, downloadId, { silent: true })
+  })
+  const ok = results.filter(r => r === 'completed').length
+  if (ok > 0) showToast(`已下载 ${ok}/${images.length} 张图片`, ok === images.length ? 'success' : 'warning', 5000)
+  else showToast('图片下载失败，请重试', 'error')
 }
 
+// 下载全部：视频/图片/实况全部作为独立文件并发单链路下载（原格式，不打包 zip）
 const downloadAll = async () => {
   const resultData = videoStore.resultData
   if (!resultData) return
-  const hasVideo = !!resultData.url
-  const hasImages = resultData.images?.length > 0
-  const livePhotos = resultData.live_photo || []
-  const hasLivePhotos = livePhotos.length > 0
-  if (!hasVideo && !hasImages && !hasLivePhotos) { showToast('没有可下载的资源', 'warning'); return }
-  const zipFilename = `download_${Date.now()}.zip`
-  const downloadId = videoStore.addDownload({ filename: zipFilename, status: 'preparing', statusText: '准备中...' })
-  videoStore.updateDownload(downloadId, { status: 'downloading', statusText: '正在打包...', percent: 0 })
-  try {
-    const zip = new JSZip()
-    let totalItems = (hasVideo ? 1 : 0) + (hasImages ? resultData.images.length : 0) + (hasLivePhotos ? livePhotos.length * 2 : 0)
-    let processedItems = 0
-    if (hasVideo) {
-      videoStore.updateDownload(downloadId, { percent: Math.round(((processedItems + 1) / totalItems) * 50), statusText: '打包视频...' })
-      const response = await fetch(resultData.url, { method: 'GET', mode: 'cors' })
-      const blob = await response.blob()
-      zip.file(getDownloadFilename(resultData.url, 'mp4'), blob)
-      processedItems++
-    }
-    if (hasLivePhotos) {
-      for (let i = 0; i < livePhotos.length; i++) {
-        const item = livePhotos[i]
-        videoStore.updateDownload(downloadId, { percent: Math.round(((processedItems + 1) / totalItems) * 50), statusText: `打包实况 ${i + 1}/${livePhotos.length}...` })
-        const imgResponse = await fetch(item.image, { method: 'GET', mode: 'cors' })
-        zip.file(getDownloadFilename(item.image, 'jpg'), await imgResponse.blob())
-        processedItems++
-        videoStore.updateDownload(downloadId, { percent: Math.round(((processedItems + 1) / totalItems) * 50), statusText: `打包实况 ${i + 1}/${livePhotos.length}...` })
-        const videoResponse = await fetch(item.video, { method: 'GET', mode: 'cors' })
-        zip.file(getDownloadFilename(item.video, 'mp4'), await videoResponse.blob())
-        processedItems++
-      }
-    }
-    if (hasImages) {
-      for (let i = 0; i < resultData.images.length; i++) {
-        videoStore.updateDownload(downloadId, { percent: Math.round(((processedItems + 1) / totalItems) * 50), statusText: `打包图片 ${i + 1}/${resultData.images.length}...` })
-        const imgResponse = await fetch(resultData.images[i], { method: 'GET', mode: 'cors' })
-        const ext = imgResponse.blob.type.includes('png') ? 'png' : 'jpg'
-        zip.file(getDownloadFilename(resultData.images[i], ext), await imgResponse.blob())
-        processedItems++
-      }
-    }
-    videoStore.updateDownload(downloadId, { percent: 70, statusText: '正在压缩...' })
-    const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } }, (metadata) => {
-      videoStore.updateDownload(downloadId, { percent: 70 + Math.round(metadata.percent * 0.3), statusText: `压缩中 ${Math.round(metadata.percent)}%` })
-    })
-    videoStore.updateDownload(downloadId, { percent: 95, statusText: '正在下载...' })
-    const savedPath = await saveBlob(zipBlob, zipFilename)
-    if (isNative() && !savedPath) throw new Error('原生存储写入失败')
-    videoStore.updateDownload(downloadId, { status: 'completed', statusText: '已完成', percent: 100 })
-    if (isNative() && savedPath) showToast(`已保存到 ${savedPath}`, 'success', 6000)
-    else showToast('下载完成')
-  } catch (e) {
-    console.error(e)
-    videoStore.updateDownload(downloadId, { status: 'failed', statusText: '下载失败', error: e.message })
-    showToast('下载失败', 'error')
+  const tasks = []
+  if (resultData.url) tasks.push({ url: resultData.url, ext: 'mp4' })
+  for (const img of (resultData.images || [])) tasks.push({ url: img, ext: getUrlExt(img, 'jpg') })
+  for (const item of (resultData.live_photo || [])) {
+    if (item.image) tasks.push({ url: item.image, ext: getUrlExt(item.image, 'jpg') })
+    if (item.video) tasks.push({ url: item.video, ext: 'mp4' })
   }
+  if (!tasks.length) { showToast('没有可下载的资源', 'warning'); return }
+  const results = await runConcurrent(tasks, 3, async (task) => {
+    const filename = getDownloadFilename(task.url, task.ext)
+    const downloadId = videoStore.addDownload({ filename, url: task.url })
+    return downloadFile(task.url, filename, downloadId, { silent: true })
+  })
+  const ok = results.filter(r => r === 'completed').length
+  if (ok > 0) showToast(`已下载 ${ok}/${tasks.length} 个文件`, ok === tasks.length ? 'success' : 'warning', 6000)
+  else showToast('下载失败，请重试', 'error')
 }
 
 const downloadMusic = (music) => {
@@ -489,66 +478,48 @@ const downloadLiveCover = (item) => {
   }
 }
 
+// 下载全部实况：每组实况的封面+视频各自作为独立文件并发下载（原格式，不打包 zip）
 const downloadAllLivePhotos = async () => {
-  if (!videoStore.resultData?.live_photo?.length) return
-  const photos = videoStore.resultData.live_photo
-  const zipFilename = `live_photos_${Date.now()}.zip`
-  const downloadId = videoStore.addDownload({ filename: zipFilename, status: 'preparing', statusText: '准备中...' })
-  try {
-    const zip = new JSZip()
-    let processedItems = 0
-    const totalItems = photos.length * 2
-    for (let i = 0; i < photos.length; i++) {
-      const item = photos[i]
-      videoStore.updateDownload(downloadId, { status: 'downloading', percent: Math.round(((processedItems + 1) / totalItems) * 80), statusText: `打包实况 ${i + 1}/${photos.length}...` })
-      if (item.image) { zip.file(getDownloadFilename(item.image, 'jpg'), await (await fetch(item.image, { method: 'GET', mode: 'cors' })).blob()); processedItems++ }
-      if (item.video) { zip.file(getDownloadFilename(item.video, 'mp4'), await (await fetch(item.video, { method: 'GET', mode: 'cors' })).blob()); processedItems++ }
-    }
-    videoStore.updateDownload(downloadId, { percent: 90, statusText: '生成压缩包...' })
-    const zipBlob = await zip.generateAsync({ type: 'blob' })
-    const savedPath = await saveBlob(zipBlob, zipFilename)
-    if (isNative() && !savedPath) throw new Error('原生存储写入失败')
-    videoStore.updateDownload(downloadId, { status: 'completed', percent: 100, statusText: '下载完成' })
-    setTimeout(() => videoStore.removeDownload(downloadId), 3000)
-    if (isNative() && savedPath) showToast(`已保存到 ${savedPath}`, 'success', 5000)
-    else showToast(`已下载 ${photos.length} 组实况文件`)
-  } catch (e) {
-    console.error('下载失败:', e)
-    videoStore.updateDownload(downloadId, { status: 'failed', statusText: '下载失败' })
-    showToast('下载失败，请重试', 'error')
+  const photos = videoStore.resultData?.live_photo
+  if (!photos?.length) return
+  const tasks = []
+  for (const item of photos) {
+    if (item.image) tasks.push({ url: item.image, ext: getUrlExt(item.image, 'jpg') })
+    if (item.video) tasks.push({ url: item.video, ext: 'mp4' })
   }
+  if (!tasks.length) { showToast('没有可下载的实况', 'warning'); return }
+  const results = await runConcurrent(tasks, 3, async (task) => {
+    const filename = getDownloadFilename(task.url, task.ext)
+    const downloadId = videoStore.addDownload({ filename, url: task.url })
+    return downloadFile(task.url, filename, downloadId, { silent: true })
+  })
+  const ok = results.filter(r => r === 'completed').length
+  if (ok > 0) showToast(`已下载 ${ok}/${tasks.length} 个实况文件`, ok === tasks.length ? 'success' : 'warning', 5000)
+  else showToast('实况下载失败，请重试', 'error')
 }
 
+// 下载全部封面：逐张并发保存（原格式，不打包 zip）
 const downloadAllLiveCovers = async () => {
-  if (!videoStore.resultData?.live_photo?.length) return
-  const photos = videoStore.resultData.live_photo
-  const zipFilename = `live_covers_${Date.now()}.zip`
-  const downloadId = videoStore.addDownload({ filename: zipFilename, status: 'preparing', statusText: '准备中...' })
-  try {
-    const zip = new JSZip()
-    let processedItems = 0
-    const totalItems = photos.length
-    for (let i = 0; i < photos.length; i++) {
-      const item = photos[i]
-      if (item.image) {
-        videoStore.updateDownload(downloadId, { status: 'downloading', percent: Math.round(((processedItems + 1) / totalItems) * 90), statusText: `打包封面 ${i + 1}/${photos.length}...` })
-        zip.file(getDownloadFilename(item.image, 'jpg'), await (await fetch(item.image, { method: 'GET', mode: 'cors' })).blob())
-        processedItems++
-      }
-    }
-    videoStore.updateDownload(downloadId, { percent: 95, statusText: '生成压缩包...' })
-    const zipBlob = await zip.generateAsync({ type: 'blob' })
-    const savedPath = await saveBlob(zipBlob, zipFilename)
-    if (isNative() && !savedPath) throw new Error('原生存储写入失败')
-    videoStore.updateDownload(downloadId, { status: 'completed', percent: 100, statusText: '下载完成' })
-    setTimeout(() => videoStore.removeDownload(downloadId), 3000)
-    if (isNative() && savedPath) showToast(`已保存到 ${savedPath}`, 'success', 5000)
-    else showToast(`已下载 ${photos.length} 张封面`)
-  } catch (e) {
-    console.error('下载失败:', e)
-    videoStore.updateDownload(downloadId, { status: 'failed', statusText: '下载失败' })
-    showToast('下载失败，请重试', 'error')
-  }
+  const photos = videoStore.resultData?.live_photo
+  if (!photos?.length) return
+  const covers = photos.map(item => item.image).filter(Boolean)
+  if (!covers.length) { showToast('没有可下载的封面', 'warning'); return }
+  const results = await runConcurrent(covers, 3, async (url) => {
+    const filename = getDownloadFilename(url, getUrlExt(url, 'jpg'))
+    const downloadId = videoStore.addDownload({ filename, url })
+    return downloadFile(url, filename, downloadId, { silent: true })
+  })
+  const ok = results.filter(r => r === 'completed').length
+  if (ok > 0) showToast(`已下载 ${ok}/${covers.length} 张封面`, ok === covers.length ? 'success' : 'warning', 5000)
+  else showToast('封面下载失败，请重试', 'error')
+}
+
+// 单张图片下载（图片集里挑一张好看的单独保存）
+const downloadSingleImage = (url) => {
+  if (!url) return
+  const filename = getDownloadFilename(url, getUrlExt(url, 'jpg'))
+  const downloadId = videoStore.addDownload({ filename, url })
+  downloadFile(url, filename, downloadId)
 }
 
 const switchVideo = (backup) => {
@@ -657,6 +628,7 @@ onMounted(() => {
           @download-main="downloadMainVideo"
           @download-backup="downloadBackupVideo"
           @download-all="downloadAll"
+          @download-single-image="downloadSingleImage"
           @download-music="downloadMusic"
           @download-live-video="downloadLiveVideo"
           @download-live-cover="downloadLiveCover"

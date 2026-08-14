@@ -14,7 +14,7 @@ const props = defineProps({
 const emit = defineEmits([
   'download-main', 'download-backup', 'download-all', 'download-music',
   'download-live-video', 'download-live-cover', 'download-all-live', 'download-all-live-covers',
-  'copy-url', 'toggle-backup', 'switch-video'
+  'download-single-image', 'copy-url', 'toggle-backup', 'switch-video'
 ])
 
 // ── computed state ──
@@ -134,6 +134,8 @@ const content = {
     backupTitle: '备用画质',
     unknown: '未知',
     allImages: '下载全部图片',
+    downloadSingleImage: '下载这张',
+    downloadAllHint: '逐个保存原图，无需解压',
     downloadAllLive: '下载全部实况',
     downloadAllCovers: '下载全部封面',
     musicTitle: '背景音乐',
@@ -193,6 +195,8 @@ const content = {
     backupTitle: 'Backup Quality',
     unknown: 'Unknown',
     allImages: 'Download Images',
+    downloadSingleImage: 'Download',
+    downloadAllHint: 'Saved individually, no unzip needed',
     downloadAllLive: 'Download All Live',
     downloadAllCovers: 'Download All Covers',
     musicTitle: 'Background Music',
@@ -425,7 +429,7 @@ const toggleSection = (key) => {
               'rs-gallery--4': resultData.images.length > 6
             }"
           >
-            <button
+            <div
               v-for="(img, idx) in resultData.images"
               :key="idx"
               @click="openImageModal(idx)"
@@ -436,7 +440,15 @@ const toggleSection = (key) => {
               <div class="rs-gallery-mask">
                 <i class="fas fa-search-plus"></i>
               </div>
-            </button>
+              <button
+                class="rs-gallery-dl"
+                :title="`${t(locale, 'downloadSingleImage')} ${idx + 1}`"
+                :aria-label="`${t(locale, 'downloadSingleImage')} ${idx + 1}`"
+                @click.stop="emit('download-single-image', img)"
+              >
+                <i class="fas fa-download"></i>
+              </button>
+            </div>
           </div>
 
           <div class="rs-card-actions">
@@ -445,6 +457,7 @@ const toggleSection = (key) => {
               <span>{{ t(locale, 'allImages') }} ({{ resultData.images.length }})</span>
             </button>
           </div>
+          <p class="rs-gallery-hint">{{ t(locale, 'downloadAllHint') }}</p>
         </div>
 
         <!-- ── LIVE PHOTOS ── -->
@@ -1289,6 +1302,50 @@ const toggleSection = (key) => {
 .rs-gallery-item:hover .rs-gallery-mask {
   background: rgba(0,0,0,.35);
   opacity: 1;
+}
+/* 单张下载按钮：右下角圆形按钮，hover 显示（触屏常显） */
+.rs-gallery-dl {
+  position: absolute;
+  right: .5rem;
+  bottom: .5rem;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.55);
+  color: #fff;
+  font-size: .85rem;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: all var(--t-base);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 2;
+}
+.rs-gallery-item:hover .rs-gallery-dl,
+.rs-gallery-dl:focus-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.rs-gallery-dl:active {
+  transform: scale(.92);
+}
+.rs-gallery-dl:hover {
+  background: var(--c-accent);
+  color: #fff;
+}
+@media (hover: none) {
+  .rs-gallery-dl { opacity: 1; transform: translateY(0); }
+}
+.rs-gallery-hint {
+  margin: 0 1.125rem 1rem;
+  font-size: .75rem;
+  color: var(--c-text-2, #888);
+  text-align: center;
 }
 
 /* ═══════════════════════════════════════════════════════════════
