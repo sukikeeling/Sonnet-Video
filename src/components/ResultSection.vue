@@ -797,8 +797,17 @@ const toggleSection = (key) => {
               :class="{ 'rs-modal-dot--on': idx === activeImageIndex }"
             ></button>
           </div>
-          <div class="rs-modal-num">
-            {{ activeImageIndex + 1 }} / {{ resultData.images?.length }}
+          <div class="rs-modal-footer">
+            <button
+              class="rs-modal-dl-btn"
+              @click.stop="emit('download-single-image', resultData.images[activeImageIndex])"
+            >
+              <i class="fas fa-download"></i>
+              <span>下载此图片</span>
+            </button>
+            <div class="rs-modal-num">
+              {{ activeImageIndex + 1 }} / {{ resultData.images?.length }}
+            </div>
           </div>
         </div>
       </Transition>
@@ -1303,39 +1312,42 @@ const toggleSection = (key) => {
   background: rgba(0,0,0,.35);
   opacity: 1;
 }
-/* 单张下载按钮：右下角圆形按钮，hover 显示（触屏常显） */
+/* 单张下载按钮：右下角圆形按钮，手机常显，点击直接存单张 */
 .rs-gallery-dl {
   position: absolute;
   right: .5rem;
   bottom: .5rem;
-  width: 2rem;
-  height: 2rem;
+  width: 2.2rem;
+  height: 2.2rem;
   border-radius: 50%;
-  border: none;
+  border: 1px solid rgba(255,255,255,0.35);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0,0,0,.55);
+  background: rgba(0,0,0,.7);
   color: #fff;
-  font-size: .85rem;
+  font-size: .9rem;
   cursor: pointer;
-  opacity: 0;
-  transform: translateY(4px);
+  opacity: 0.92;
+  transform: translateY(0);
   transition: all var(--t-base);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   z-index: 2;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
 }
 .rs-gallery-item:hover .rs-gallery-dl,
 .rs-gallery-dl:focus-visible {
   opacity: 1;
-  transform: translateY(0);
+  background: var(--c-accent, #f59e0b);
+  border-color: transparent;
+  transform: scale(1.08);
 }
 .rs-gallery-dl:active {
   transform: scale(.92);
 }
 .rs-gallery-dl:hover {
-  background: var(--c-accent);
+  background: var(--c-accent, #f59e0b);
   color: #fff;
 }
 @media (hover: none) {
@@ -2229,13 +2241,51 @@ const toggleSection = (key) => {
   width: 1.25rem;
   border-radius: 999px;
 }
-.rs-modal-num {
+.rs-modal-footer {
   position: absolute;
   bottom: 1.25rem;
+  left: 1.25rem;
   right: 1.25rem;
-  color: rgba(255,255,255,.55);
-  font-size: .75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+  z-index: 10;
+}
+.rs-modal-dl-btn {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #fff;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.rs-modal-dl-btn:hover {
+  background: var(--c-accent, #f59e0b);
+  border-color: transparent;
+  transform: translateY(-1px);
+}
+.rs-modal-dl-btn:active {
+  transform: scale(0.95);
+}
+.rs-modal-num {
+  pointer-events: auto;
+  color: rgba(255,255,255,.85);
+  font-size: .8125rem;
   font-variant-numeric: tabular-nums;
+  background: rgba(0,0,0,0.45);
+  padding: 0.25rem 0.625rem;
+  border-radius: 999px;
+  backdrop-filter: blur(4px);
 }
 
 /* transition */

@@ -13,6 +13,8 @@ import ToastContainer from './components/ToastContainer.vue'
 import ProgressModal from './components/ProgressModal.vue'
 import ParticlesCanvas from './components/ParticlesCanvas.vue'
 import DownloadCard from './components/DownloadCard.vue'
+import HistoryModal from './components/HistoryModal.vue'
+import { parseXiaoLvFang } from './services/xiaolvfangService'
 import { useButtonControl } from './composables/useButtonControl'
 import { useI18n } from './composables/useI18n'
 
@@ -326,9 +328,38 @@ const parseVideo = async () => {
     videoStore.clearResult()
     currentVideoUrl.value = ''
     showBackup.value = false
-    const apiUrl = PLATFORM_API_MAP[currentPlatform.value] || PLATFORM_API_MAP.all
-    const data = await fetchJsonWithTimeout(`${apiUrl}?url=${encodeURIComponent(url)}`)
-    const resultData = normalizeParserResponse(data)
+
+    // 智能双路竞速解析：主接口 + 效率坊(xiaolvfang)并发，谁快选谁，成功即停，避免重复
+    const abortController = new AbortController()
+    const signal = abortController.signal
+
+    const mainTask = async () => {
+      const apiUrl = PLATFORM_API_MAP[currentPlatform.value] || PLATFORM_API_MAP.all
+      const res = await fetch(`${apiUrl}?url=${encodeURIComponent(url)}`, {
+        method: 'GET',
+        signal,
+        headers: { Accept: 'application/json' }
+      })
+      if (!res.ok) throw new Error(`主源响应异常(HTTP ${res.status})`)
+      const json = await res.json()
+      return normalizeParserResponse(json)
+    }
+
+    const xiaoLvFangTask = async () => {
+      return await parseXiaoLvFang(url, signal)
+    }
+
+    let resultData = null
+    try {
+      resultData = await Promise.any([mainTask(), xiaoLvFangTask()])
+    } catch (aggErr) {
+      const errors = aggErr.errors || []
+      const err = errors[0] || errors[1] || new Error('解析失败，请检查链接后重试')
+      throw err
+    } finally {
+      abortController.abort()
+    }
+
     videoStore.setResult(resultData)
     await nextTick()
     try { videoStore.initSwiper() } catch (e) { console.warn('Swiper初始化失败:', e) }
@@ -340,8 +371,45 @@ const parseVideo = async () => {
     showToast(errorMsg, 'error', 6000)
   } else {
     parseError.value = ''
-    showToast('解析成功', 'success', 2200)
+    try {
+      videoStore.addHistoryRecord(url, result, currentPlatform.value)
+    } catch (e) {
+      console.warn('保存历史记录失败:', e)
+    }
+    const srcName = result.extra?.source === 'xiaolvfang' ? '（效率坊快线）' : ''
+    showToast(`解析成功${srcName}，已自动保存记录`, 'success', 2200)
   }
+}
+
+const handleRestoreFromHistory = async (item) => {
+  if (!item?.resultData) return
+  inputUrl.value = item.originalUrl || ''
+  if (item.platform && item.platform !== 'all') {
+    currentPlatform.value = item.platform
+  }
+  currentVideoUrl.value = ''
+  showBackup.value = false
+  videoStore.setResult(item.resultData)
+  await nextTick()
+  try { videoStore.initSwiper() } catch (e) { console.warn('Swiper初始化失败:', e) }
+  setTimeout(() => {
+    const resultSection = document.querySelector('section.result-section, [role="region"], .max-w-7xl section')
+    if (resultSection) {
+      resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    } else {
+      window.scrollTo({ top: 400, behavior: 'smooth' })
+    }
+  }, 100)
+  showToast('已载入历史解析结果，可直接下载', 'success', 3000)
+}
+
+const handleReparseFromHistory = (item) => {
+  if (!item?.originalUrl) return
+  inputUrl.value = item.originalUrl
+  if (item.platform && item.platform !== 'all') {
+    currentPlatform.value = item.platform
+  }
+  parseVideo()
 }
 
 const downloadFile = async (url, filename, downloadId, options = {}) => {
@@ -588,6 +656,12 @@ onMounted(() => {
     <ParticlesCanvas />
     <ToastContainer />
     <ProgressModal />
+    <HistoryModal
+      :locale="locale"
+      @restore="handleRestoreFromHistory"
+      @reparse="handleReparseFromHistory"
+      @copy-url="copyUrl"
+    />
     <DownloadCard
       :downloads="videoStore.downloads"
       @cancel="handleCancelDownload"

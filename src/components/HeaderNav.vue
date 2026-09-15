@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useVideoStore } from '../stores/video'
 
 defineProps({
   isDark: Boolean,
@@ -8,6 +9,7 @@ defineProps({
 
 const emit = defineEmits(['toggle-theme', 'set-locale'])
 
+const videoStore = useVideoStore()
 const isMobileMenuOpen = ref(false)
 const scrollProgress = ref(0)
 
@@ -115,6 +117,22 @@ const handleKeydown = (e) => {
 
         <!-- Controls -->
         <div class="flex items-center gap-2 sm:gap-3">
+          <!-- 解析记录按钮 -->
+          <button
+            @click="videoStore.openHistory()"
+            class="relative px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium bg-[var(--c-bg-elevated)] text-[var(--c-fg-2)] hover:text-amber-500 border border-[var(--c-border)] hover:border-amber-400 transition-all duration-200 flex items-center gap-1.5 shadow-sm"
+            title="查看解析记录"
+          >
+            <i class="fas fa-clock-rotate-left text-amber-500"></i>
+            <span class="hidden sm:inline">记录</span>
+            <span
+              v-if="videoStore.historyList.length > 0"
+              class="px-1.5 py-0.2 text-[10px] rounded-full bg-gradient-to-r from-amber-500 to-pink-500 text-white font-bold leading-tight"
+            >
+              {{ videoStore.historyList.length > 99 ? '99+' : videoStore.historyList.length }}
+            </span>
+          </button>
+
           <div class="relative">
             <select
               :value="locale"
@@ -165,6 +183,18 @@ const handleKeydown = (e) => {
         @keydown="handleKeydown"
       >
         <nav class="px-4 py-3 space-y-1" role="navigation" aria-label="Mobile navigation">
+          <button
+            @click="videoStore.openHistory(); closeMobileMenu()"
+            class="w-full text-left px-4 py-3 text-sm font-medium text-[var(--c-fg-2)] rounded-lg hover:bg-[var(--c-bg-elevated)] hover:text-amber-500 transition-colors duration-200 flex items-center justify-between"
+          >
+            <span class="flex items-center gap-2">
+              <i class="fas fa-clock-rotate-left text-amber-500"></i>
+              <span>解析记录</span>
+            </span>
+            <span v-if="videoStore.historyList.length > 0" class="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 font-bold">
+              {{ videoStore.historyList.length }}
+            </span>
+          </button>
           <a
             v-for="link in navLinks"
             :key="link.href"

@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { historyService } from '../services/historyService'
 
 export const useVideoStore = defineStore('video', () => {
   const resultData = ref(null)
@@ -10,7 +11,32 @@ export const useVideoStore = defineStore('video', () => {
   const progressPercent = ref(0)
   const downloads = ref([])
   const activeDownloads = ref(new Map())
+  const historyList = ref(historyService.getHistory())
+  const showHistoryModal = ref(false)
   let swiperInstance = null
+
+  const openHistory = () => {
+    historyList.value = historyService.getHistory()
+    showHistoryModal.value = true
+  }
+
+  const closeHistory = () => {
+    showHistoryModal.value = false
+  }
+
+  const addHistoryRecord = (originalUrl, data, platform) => {
+    const record = historyService.addRecord(originalUrl, data, platform)
+    historyList.value = historyService.getHistory()
+    return record
+  }
+
+  const removeHistoryRecord = (id) => {
+    historyList.value = historyService.deleteRecord(id)
+  }
+
+  const clearAllHistory = () => {
+    historyList.value = historyService.clearAll()
+  }
 
   const setResult = (data) => {
     resultData.value = data
@@ -179,6 +205,13 @@ export const useVideoStore = defineStore('video', () => {
     progressPercent,
     downloads,
     activeDownloads,
+    historyList,
+    showHistoryModal,
+    openHistory,
+    closeHistory,
+    addHistoryRecord,
+    removeHistoryRecord,
+    clearAllHistory,
     setResult,
     clearResult,
     addToast,

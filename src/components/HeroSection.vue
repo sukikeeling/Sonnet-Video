@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import { useVideoStore } from '../stores/video'
 
 const props = defineProps({
   inputUrl: String,
@@ -11,6 +12,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:inputUrl', 'parse', 'select-platform'])
+
+const videoStore = useVideoStore()
 
 const content = {
   'zh-CN': {
@@ -186,10 +189,22 @@ const selectPlatform = (key) => emit('select-platform', key)
           </div>
         </Transition>
 
-        <p class="text-xs text-[var(--c-fg-3)] mt-3 px-2">
-          <i class="fas fa-info-circle mr-1 text-amber-400"></i>
-          {{ locale === 'zh-CN' ? '支持抖音、快手、B站、小红书等平台' : 'Support Douyin, Kuaishou, Bilibili, Xiaohongshu & more' }}
-        </p>
+        <div class="flex items-center justify-between mt-3 px-1 flex-wrap gap-2">
+          <p class="text-xs text-[var(--c-fg-3)] text-left">
+            <i class="fas fa-info-circle mr-1 text-amber-400"></i>
+            {{ locale === 'zh-CN' ? '支持抖音、快手、B站、小红书等平台' : 'Support Douyin, Kuaishou, Bilibili, Xiaohongshu & more' }}
+          </p>
+
+          <button
+            @click="videoStore.openHistory()"
+            type="button"
+            class="text-xs text-amber-500 hover:text-amber-400 flex items-center gap-1.5 py-1 px-3 rounded-full bg-amber-500/10 hover:bg-amber-500/20 active:scale-95 transition-all font-medium border border-amber-500/20"
+          >
+            <i class="fas fa-clock-rotate-left text-[11px]"></i>
+            <span>解析记录</span>
+            <span v-if="videoStore.historyList.length > 0" class="font-bold">({{ videoStore.historyList.length }})</span>
+          </button>
+        </div>
       </div>
     </div>
   </section>
