@@ -416,6 +416,40 @@ const downloadFile = async (url, filename, downloadId, options = {}) => {
   if (!url) return 'failed'
   const abortController = new AbortController()
   if (downloadId) videoStore.updateDownload(downloadId, { abortController })
+
+  // 原生环境优先：走 Capacitor 原生网络直接落盘，完全绕开 WebView 的 CORS 限制与 Base64 内存开销
+  if (isNative()) {
+    try {
+      videoStore.updateDownload(downloadId, { status: 'downloading', statusText: '下载中...', percent: 0, loaded: 0, total: 0 })
+      const dir = Directory.Documents
+      try {
+        await Filesystem.mkdir({ path: 'sonnet', directory: dir, recursive: true })
+      } catch (e) {
+        /* 已存在 */
+      }
+
+      await Filesystem.downloadFile({
+        url: url,
+        path: `sonnet/${filename || 'download'}`,
+        directory: dir,
+        recursive: true,
+        headers: {
+          'Referer': 'https://www.douyin.com/',
+          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1'
+        }
+      })
+
+      const savedPath = `文档/sonnet/${filename || 'download'}`
+      videoStore.updateDownload(downloadId, { status: 'completed', statusText: '已完成', percent: 100 })
+      if (!options.silent) {
+        showToast(`已保存到 ${savedPath}`, 'success', 6000)
+      }
+      return 'completed'
+    } catch (e) {
+      console.warn('原生 downloadFile 异常，回退流式下载:', e)
+    }
+  }
+
   try {
     videoStore.updateDownload(downloadId, { status: 'downloading', statusText: '下载中...', percent: 0, loaded: 0, total: 0 })
     const response = await fetch(url, { method: 'GET', mode: 'cors', signal: abortController.signal })
