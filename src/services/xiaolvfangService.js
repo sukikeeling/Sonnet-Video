@@ -5,8 +5,9 @@
 
 export const parseXiaoLvFang = async (shareUrl, signal) => {
   const endpoint = 'https://www.xiaolvfang.com/api/url/parse'
+  const cleanUrl = typeof shareUrl === 'string' ? shareUrl.trim() : ''
   const payload = {
-    url: shareUrl
+    url: cleanUrl
   }
 
   const response = await fetch(endpoint, {
@@ -14,7 +15,6 @@ export const parseXiaoLvFang = async (shareUrl, signal) => {
     signal,
     headers: {
       'Content-Type': 'application/json',
-      'timestamg': String(Date.now()),
       'Accept': 'application/json'
     },
     body: JSON.stringify(payload)
@@ -39,16 +39,30 @@ export const parseXiaoLvFang = async (shareUrl, signal) => {
   }
 
   const mediaType = isVideo && videoUrl ? 'video' : (pics.length > 0 ? 'image' : 'video')
-  const title = data.title || data.desc || ''
-  const cover = data.cover || pics[0] || ''
+  const title = data.title || data.description || data.desc || ''
+  const cover = data.cover || data.thumbnail || pics[0] || ''
+
+  let authorName = ''
+  let authorAvatar = ''
+  if (data.author && typeof data.author === 'object') {
+    authorName = data.author.name || data.author.nickname || ''
+    authorAvatar = data.author.avatar || ''
+  } else if (typeof data.author === 'string') {
+    authorName = data.author
+  } else if (data.nickname) {
+    authorName = data.nickname
+  }
+  if (!authorAvatar && data.avatar) {
+    authorAvatar = data.avatar
+  }
 
   return {
     type: mediaType,
     title: title,
     desc: title,
     author: {
-      name: data.author || data.nickname || '',
-      avatar: data.avatar || ''
+      name: authorName,
+      avatar: authorAvatar
     },
     cover: cover,
     url: videoUrl,

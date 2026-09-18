@@ -195,7 +195,7 @@ const preloadMedia = async (resultData) => {
 
 const extractFirstHttpUrl = (text) => {
   if (!text) return null
-  const match = text.match(/\bhttps?:\/\/[^\s<>"{}|\\^`\[\]]+/i)
+  const match = text.match(/\bhttps?:\/\/[^\s<>"{}|\\^`\[\]\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]+/i)
   return match ? match[0].replace(/[),.;!?，。；！？]+$/, '') : null
 }
 
