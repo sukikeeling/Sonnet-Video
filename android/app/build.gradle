@@ -7,8 +7,8 @@ android {
         applicationId "com.sonnet.video"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 22
-        versionName "2.2"
+        versionCode 27
+        versionName "2.7"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,9 +16,21 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            // 统一使用 CN=Sonnet 发布密钥签名（固定这一把，不再切换）
+            // 指纹 SHA-256: D4211B78C819A23F8DC7A4D08061DC5F91EAAEDE170CC54C1A89656F6BDFE06C
+            // 注意：与 v2.2 及更早的 debug 签名包不兼容，首次切换需先卸载旧版再安装
+            storeFile file(System.getenv("SONNET_KEYSTORE") ?: "../../sonnet-release.keystore")
+            storePassword System.getenv("SONNET_STORE_PASSWORD") ?: "sonnet2026"
+            keyAlias System.getenv("SONNET_KEY_ALIAS") ?: "sonnet"
+            keyPassword System.getenv("SONNET_KEY_PASSWORD") ?: "sonnet2026"
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
+            signingConfig signingConfigs.release
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }

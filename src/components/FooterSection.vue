@@ -32,10 +32,9 @@ const content = {
 
 const getContent = (locale) => content[locale] || content['zh-CN']
 
+// 仅保留自有仓库入口，移除了原项目附带的站外推广（Demo 站 / 联系邮箱）
 const socialLinks = [
   { icon: 'fab fa-github', url: 'https://github.com/sukikeeling/BK-SV-v3.0-Personal', label: 'GitHub', color: '#333' },
-  { icon: 'fas fa-globe', url: 'https://sv.bugpk.com', label: 'Demo', color: '#f59e0b' },
-  { icon: 'fas fa-envelope', url: 'mailto:admin@bugpk.com', label: 'Email', color: '#f472b6' },
 ]
 </script>
 
@@ -109,9 +108,8 @@ const socialLinks = [
             {{ getContent(locale).contact }}
           </h5>
           <ul class="space-y-3">
-            <li class="flex items-center gap-2 text-sm text-[var(--c-fg-2)]"><i class="fas fa-user text-xs text-amber-400"></i><span>Forked from BugPk</span></li>
-            <li><a :href="socialLinks[0].url" target="_blank" rel="noopener noreferrer" class="text-sm text-[var(--c-fg-2)] hover:text-amber-500 transition-colors flex items-center gap-2"><i class="fab fa-github text-xs"></i><span class="truncate">sukikeeling/BK-SV-v3.0-Personal</span></a></li>
-            <li class="flex items-center gap-2 text-sm text-[var(--c-fg-2)]"><i class="fas fa-globe text-xs text-pink-400"></i><span>api.bugpk.com</span></li>
+            <li><a :href="socialLinks[0].url" target="_blank" rel="noopener noreferrer" class="text-sm text-[var(--c-fg-2)] hover:text-amber-500 transition-colors flex items-center gap-2"><i class="fab fa-github text-xs"></i><span class="truncate">Sonnet Video 项目主页</span></a></li>
+            <li class="flex items-center gap-2 text-sm text-[var(--c-fg-2)]"><i class="fas fa-shield-halved text-xs text-emerald-400"></i><span>多线路解析 · 无广告</span></li>
           </ul>
           <div class="mt-5">
             <a

@@ -61,12 +61,10 @@ const duplicatedPlatforms = [...allPlatforms, ...allPlatforms]
           class="flex gap-4 animate-marquee"
           :class="{ 'animation-play-state-paused': isPaused }"
         >
-          <a
+          <!-- 不再跳转站外：平台卡片改为纯展示，避免用户被带离 App -->
+          <div
             v-for="(platform, idx) in duplicatedPlatforms"
             :key="`p-${idx}`"
-            :href="platform.url"
-            target="_blank"
-            rel="noopener noreferrer"
             class="platform-card"
             :aria-label="`${platform.name}: ${getDesc(locale, idx % allPlatforms.length)}`"
           >
@@ -78,10 +76,7 @@ const duplicatedPlatforms = [...allPlatforms, ...allPlatforms]
             </div>
             <h4 class="platform-name">{{ platform.name }}</h4>
             <p class="platform-desc">{{ getDesc(locale, idx % allPlatforms.length) }}</p>
-            <div class="platform-hover-indicator">
-              <i class="fas fa-external-link-alt text-xs"></i>
-            </div>
-          </a>
+          </div>
         </div>
       </div>
     </div>

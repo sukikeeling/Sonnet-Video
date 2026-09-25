@@ -14,7 +14,7 @@ import ProgressModal from './components/ProgressModal.vue'
 import ParticlesCanvas from './components/ParticlesCanvas.vue'
 import DownloadCard from './components/DownloadCard.vue'
 import HistoryModal from './components/HistoryModal.vue'
-import { parseXiaoLvFang } from './services/xiaolvfangService'
+import { parseByZacao, parseByXiaoLvFang, raceParse, isXlfCoolingDown } from './services/parseSources'
 import { useButtonControl } from './composables/useButtonControl'
 import { useI18n } from './composables/useI18n'
 
@@ -83,6 +83,9 @@ const parseError = ref('')
 const currentPlatform = ref('all')
 const currentVideoUrl = ref('')
 const PARSE_TIMEOUT_MS = 55000
+// 主源独立超时：bugpk 等公共接口近期频繁卡死（实测可达 35-40 秒无响应），
+// 超过该时限即视为主源不可用，立刻切换备用线路，避免用户干等近一分钟。
+const PRIMARY_TIMEOUT_MS = 12000
 
 const MD5 = (str) => {
   const rotateLeft = (val, bits) => (val << bits) | (val >>> (32 - bits))
@@ -329,35 +332,57 @@ const parseVideo = async () => {
     currentVideoUrl.value = ''
     showBackup.value = false
 
-    // 智能双路竞速解析：主接口 + 效率坊(xiaolvfang)并发，谁快选谁，成功即停，避免重复
+    // 解析策略：主源优先，主源失败才降级到效率坊(xiaolvfang)兜底。
+    // 说明：不做并发竞速——主源能成功就绝不打扰备用平台，避免无谓消耗对方配额，
+    //      也避免备用平台的限流影响正常速度。只有主源真的报错/超时/返回不可用时才切换。
     const abortController = new AbortController()
     const signal = abortController.signal
 
+    // 主源：独立超时，超时/异常/业务失败一律抛出，交给兜底接管
     const mainTask = async () => {
       const apiUrl = PLATFORM_API_MAP[currentPlatform.value] || PLATFORM_API_MAP.all
-      const res = await fetch(`${apiUrl}?url=${encodeURIComponent(url)}`, {
-        method: 'GET',
-        signal,
-        headers: { Accept: 'application/json' }
-      })
-      if (!res.ok) throw new Error(`主源响应异常(HTTP ${res.status})`)
-      const json = await res.json()
-      return normalizeParserResponse(json)
+      const primaryController = new AbortController()
+      const onOuterAbort = () => primaryController.abort()
+      const primaryTimer = window.setTimeout(() => primaryController.abort(), PRIMARY_TIMEOUT_MS)
+      if (signal.aborted) primaryController.abort()
+      else signal.addEventListener('abort', onOuterAbort, { once: true })
+
+      try {
+        const res = await fetch(`${apiUrl}?url=${encodeURIComponent(url)}`, {
+          method: 'GET',
+          signal: primaryController.signal,
+          headers: { Accept: 'application/json' }
+        })
+        if (!res.ok) throw new Error(`主源响应异常(HTTP ${res.status})`)
+        const json = await res.json()
+        return normalizeParserResponse(json)
+      } catch (e) {
+        if (e?.name === 'AbortError') {
+          throw new Error(`主源响应超时（>${PRIMARY_TIMEOUT_MS / 1000}秒）`)
+        }
+        throw e
+      } finally {
+        window.clearTimeout(primaryTimer)
+        signal.removeEventListener('abort', onOuterAbort)
+      }
     }
 
-    const xiaoLvFangTask = async () => {
-      return await parseXiaoLvFang(url, signal)
-    }
-
+    // 并发竞速：主源 + 多条备用线路同时发起，谁先成功用谁，其余立即取消。
+    // 配额保护：效率坊额度耗尽后进入 30 分钟本地冷却，冷却期内不参与竞速，
+    //          避免重复撞击已被打爆的免费额度（那只会浪费时间且拿不到结果）。
     let resultData = null
     try {
-      resultData = await Promise.any([mainTask(), xiaoLvFangTask()])
-    } catch (aggErr) {
-      const errors = aggErr.errors || []
-      const err = errors[0] || errors[1] || new Error('解析失败，请检查链接后重试')
-      throw err
+      resultData = await raceParse(url, signal, [
+        { name: '主源', run: (u, s) => mainTask() },
+        { name: '备用线路A', run: (u, s) => parseByZacao(u, s) },
+        { name: '备用线路B', run: (u, s) => parseByXiaoLvFang(u, s), skip: () => isXlfCoolingDown() }
+      ])
     } finally {
       abortController.abort()
+    }
+
+    if (!resultData) {
+      throw new Error('解析失败，请检查链接后重试')
     }
 
     videoStore.setResult(resultData)
@@ -376,7 +401,8 @@ const parseVideo = async () => {
     } catch (e) {
       console.warn('保存历史记录失败:', e)
     }
-    const srcName = result.extra?.source === 'xiaolvfang' ? '（效率坊快线）' : ''
+    const SOURCE_LABELS = { zacao: '（备用线路A）', xiaolvfang: '（备用线路B）' }
+    const srcName = SOURCE_LABELS[result.extra?.source] || ''
     showToast(`解析成功${srcName}，已自动保存记录`, 'success', 2200)
   }
 }
