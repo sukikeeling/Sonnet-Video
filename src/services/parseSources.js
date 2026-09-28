@@ -1,25 +1,35 @@
 /**
- * 多源解析服务：并发竞速 + 配额保护
+ * 多源解析服务：可视化选站 + 并发竞速 + 配额保护 + 莫宁高定支持
  *
- * 设计原则：
- *   1) 并发竞速 —— 多个线路同时发起，谁先成功用谁，其余立即取消（用户端最快）
- *   2) 配额保护 —— 对已知有免费额度的线路（效率坊）做本地冷却，避免把额度打爆
- *   3) 格式归一 —— 各线路返回结构不同，统一转成项目既有的 normalizeResultData 期望格式
- *
- * 线路清单（2026-09-24 实测）：
- *   - zacao     video.zacao.top/api/parse   POST {url}   小红书图文/B站实测可用
- *   - xiaolvfang www.xiaolvfang.com/api/url/parse  POST {url}  图文/视频通吃，但每日免费额度按 IP 计
+ * 线路清单：
+ *   - auto        智能极速竞速（全线路并发，谁快用谁）
+ *   - layzz       凌云聚合源（支持30+平台，高速图集与视频）
+ *   - zacao       杂草极速源（专精小红书图文与主流短视频）
+ *   - bugpk       BugPK 经典源（老牌公共短视频接口）
+ *   - xiaolvfang  效率坊备用源（独立备用，带配额保护）
  */
+
+export const AVAILABLE_SOURCES = [
+  { key: 'auto', name: '智能极速竞速', badge: '推荐 · 秒级响应', icon: 'fa-bolt', desc: '全线路并发竞速，自动选用最快结果' },
+  { key: 'layzz', name: '凌云聚合源', badge: '全能 · 30+平台', icon: 'fa-cloud', desc: '支持抖音/小红书/快手/B站超清图文与视频' },
+  { key: 'zacao', name: '杂草极速源', badge: '图文/直链专精', icon: 'fa-seedling', desc: '专精小红书图文与主流短视频直链' },
+  { key: 'bugpk', name: 'BugPK 经典源', badge: '经典公共接口', icon: 'fa-cube', desc: '老牌短视频去水印公共接口' },
+  { key: 'xiaolvfang', name: '效率坊备用', badge: '独立备用节点', icon: 'fa-shield-halved', desc: '独立图文与视频备用解析线路' }
+]
 
 const ZACAO_ENDPOINT = 'https://video.zacao.top/api/parse'
 const ZACAO_TIMEOUT_MS = 15000
+
+const LAYZZ_ENDPOINT = 'https://proxy.layzz.cn/lyz/getAnalyse'
+const LAYZZ_TOKEN = 'uuic-qackd-fga-test'
+const LAYZZ_TIMEOUT_MS = 15000
 
 const XLF_ENDPOINT = 'https://www.xiaolvfang.com/api/url/parse'
 const XLF_REFERER = 'https://www.xiaolvfang.com/'
 const XLF_SITE = 'https://www.xiaolvfang.com'
 const XLF_TIMEOUT_MS = 18000
 
-/** 效率坊配额冷却：一旦遇到 407，本地静默跳过一段时间，别再去撞额度 */
+/** 效率坊配额冷却：一旦遇到 407/403，本地静默跳过一段时间，避免打扰 */
 const XLF_COOLDOWN_KEY = 'sonnet.xlf.cooldown'
 const XLF_COOLDOWN_MS = 30 * 60 * 1000 // 30 分钟
 
@@ -32,13 +42,11 @@ const readCooldown = () => {
 const markCooldown = () => {
   try { localStorage.setItem(XLF_COOLDOWN_KEY, String(Date.now())) } catch (e) { /* 忽略 */ }
 }
-/** 效率坊当前是否处于冷却期 */
 export const isXlfCoolingDown = () => Date.now() - readCooldown() < XLF_COOLDOWN_MS
 
 /** 剥掉 HTML 标签，保留可读文本 */
 const stripHtml = (s) => String(s || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
 
-/** 统一从各种可能的字段里取错误信息 */
 const pickMessage = (res) => {
   if (!res || typeof res !== 'object') return ''
   return stripHtml(res.message || res.msg || res.error || '')
@@ -62,40 +70,118 @@ const withTimeout = (outerSignal, timeoutMs) => {
   }
 }
 
-/* ============================ 线路一：zacao ============================ */
+/* ============================ 线路一：凌云聚合源 (Layzz) ============================ */
+export const parseByLayzz = async (shareUrl, outerSignal) => {
+  const cleanUrl = typeof shareUrl === 'string' ? shareUrl.trim() : ''
+  if (!cleanUrl) throw new Error('链接为空')
 
-/** zacao 返回 → 项目统一结构 */
+  const { signal, dispose } = withTimeout(outerSignal, LAYZZ_TIMEOUT_MS)
+  try {
+    const ep = `${LAYZZ_ENDPOINT}?token=${LAYZZ_TOKEN}&link=${encodeURIComponent(cleanUrl)}`
+    const response = await fetch(ep, {
+      method: 'GET',
+      signal,
+      headers: { 'Accept': 'application/json' }
+    })
+    if (!response.ok) throw new Error(`请求失败(HTTP ${response.status})`)
+
+    let res = null
+    try { res = await response.json() } catch (e) { throw new Error('返回格式异常') }
+
+    if (res?.code !== '0001' && res?.code !== 200 && res?.code !== '200') {
+      throw new Error(res?.message || '凌云源解析失败')
+    }
+
+    const data = res?.data || {}
+    const rawPics = Array.isArray(data.pics) ? data.pics : []
+    const pics = rawPics.map(p => typeof p === 'string' ? p.trim() : (p?.url || '')).filter(Boolean)
+    const videoUrl = typeof data.playAddr === 'string' && data.playAddr.trim() ? data.playAddr.trim() : null
+    const cover = typeof data.cover === 'string' && data.cover.trim() ? data.cover.trim() : (pics[0] || '')
+    const title = data.desc || data.title || ''
+
+    if (!videoUrl && pics.length === 0) {
+      throw new Error('未返回可用媒体直链')
+    }
+
+    return {
+      type: videoUrl ? 'video' : (pics.length > 0 ? 'image' : 'video'),
+      title,
+      desc: title,
+      author: {
+        name: data.author || '网络创作者',
+        avatar: data.avatar || ''
+      },
+      cover,
+      url: videoUrl,
+      quality: '',
+      duration: null,
+      images: pics,
+      live_photo: [],
+      video_backup: [],
+      music: data.music ? { url: data.music } : {},
+      extra: { source: 'layzz', sourceName: '凌云聚合源' }
+    }
+  } catch (err) {
+    if (err?.name === 'AbortError') throw new Error('凌云聚合源响应超时')
+    throw err
+  } finally {
+    dispose()
+  }
+}
+
+/* ============================ 线路二：杂草极速源 (Zacao) ============================ */
 const buildZacaoResult = (data) => {
-  const images = Array.isArray(data.image_list) ? data.image_list.filter(Boolean) : []
-  const videos = Array.isArray(data.video_list) ? data.video_list.filter(Boolean) : []
+  const rawImages = Array.isArray(data.image_list) ? data.image_list.filter(Boolean) : []
+  // 必须严格映射出 string URL，防止对象注入导致 [object Object] 图片损坏
+  const cleanImages = rawImages.map(item => {
+    if (typeof item === 'string') return item.trim()
+    if (typeof item === 'object' && item !== null) {
+      return (item.url || item.image || item.pic || '').trim()
+    }
+    return ''
+  }).filter(Boolean)
+
+  const livePhotos = rawImages
+    .filter(item => typeof item === 'object' && item !== null && item.live_photo_url)
+    .map(item => ({
+      image: (item.url || '').trim(),
+      video: (item.live_photo_url || '').trim()
+    }))
+
+  const rawVideos = Array.isArray(data.video_list) ? data.video_list.filter(Boolean) : []
+  const videos = rawVideos.map(v => typeof v === 'string' ? v.trim() : (v?.url || '')).filter(Boolean)
+
   const mainVideo = (typeof data.video_url === 'string' && data.video_url.trim())
     ? data.video_url.trim()
     : (videos[0] || null)
 
-  if (!mainVideo && images.length === 0) {
+  if (!mainVideo && cleanImages.length === 0 && livePhotos.length === 0) {
     throw new Error('线路未返回可用媒体直链')
   }
 
   const title = data.title || data.desc || ''
   const author = data.author || {}
+  const cover = (typeof data.cover_url === 'string' && data.cover_url.trim())
+    ? data.cover_url.trim()
+    : ((typeof data.cover === 'string' && data.cover.trim()) ? data.cover.trim() : (cleanImages[0] || ''))
 
   return {
-    type: mainVideo ? 'video' : (images.length > 0 ? 'image' : 'video'),
+    type: mainVideo ? 'video' : (livePhotos.length > 0 ? 'live' : (cleanImages.length > 0 ? 'image' : 'video')),
     title,
     desc: title,
     author: {
       name: author.nickname || author.name || '',
       avatar: author.avatar || ''
     },
-    cover: data.cover_url || data.cover || images[0] || '',
+    cover,
     url: mainVideo,
     quality: '',
     duration: null,
-    images,
-    live_photo: [],
+    images: cleanImages,
+    live_photo: livePhotos,
     video_backup: videos.slice(1).map(u => ({ url: u })),
-    music: {},
-    extra: { source: 'zacao' }
+    music: data.audio_url ? { url: data.audio_url } : {},
+    extra: { source: 'zacao', sourceName: '杂草极速源' }
   }
 }
 
@@ -121,33 +207,103 @@ export const parseByZacao = async (shareUrl, outerSignal) => {
     }
     return buildZacaoResult(res.data || {})
   } catch (err) {
-    if (err?.name === 'AbortError') throw new Error('解析超时')
+    if (err?.name === 'AbortError') throw new Error('杂草极速源响应超时')
     throw err
   } finally {
     dispose()
   }
 }
 
-/* ========================== 线路二：效率坊 ========================== */
+/* ============================ 线路三：BugPK 经典源 ============================ */
+const BUGPK_TIMEOUT_MS = 15000
+const BUGPK_PLATFORM_MAP = {
+  all: 'https://api.bugpk.com/api/short_videos',
+  douyin: 'https://api.bugpk.com/api/douyin',
+  kuaishou: 'https://api.bugpk.com/api/ksjx',
+  bilibili: 'https://api.bugpk.com/api/bilibili',
+  xhs: 'https://api.bugpk.com/api/xhsjx',
+  toutiao: 'https://api.bugpk.com/api/toutiao'
+}
 
-/** 平台特有状态码 → 用户可读文案 */
+export const parseByBugPk = async (shareUrl, outerSignal, platform = 'all') => {
+  const cleanUrl = typeof shareUrl === 'string' ? shareUrl.trim() : ''
+  if (!cleanUrl) throw new Error('链接为空')
+
+  const endpoint = BUGPK_PLATFORM_MAP[platform] || BUGPK_PLATFORM_MAP.all
+  const { signal, dispose } = withTimeout(outerSignal, BUGPK_TIMEOUT_MS)
+  try {
+    const response = await fetch(`${endpoint}?url=${encodeURIComponent(cleanUrl)}`, {
+      method: 'GET',
+      signal,
+      headers: { 'Accept': 'application/json' }
+    })
+    if (!response.ok) throw new Error(`主源响应异常(HTTP ${response.status})`)
+
+    let res = null
+    try { res = await response.json() } catch (e) { throw new Error('返回格式异常') }
+
+    const code = Number(res?.code ?? res?.status)
+    if (code !== 200 && res?.code !== '200' && res?.success !== true) {
+      throw new Error(res?.msg || res?.message || 'BugPK解析失败')
+    }
+
+    const data = res?.data || res?.result || res
+    const rawImages = Array.isArray(data.images) ? data.images : (Array.isArray(data.pics) ? data.pics : [])
+    const cleanImages = rawImages.map(img => typeof img === 'string' ? img.trim() : (img?.url || '')).filter(Boolean)
+    const videoUrl = typeof data.url === 'string' && data.url.trim() ? data.url.trim() : (typeof data.video_url === 'string' ? data.video_url.trim() : null)
+
+    if (!videoUrl && cleanImages.length === 0) {
+      throw new Error('未返回可用媒体内容')
+    }
+
+    const title = data.title || data.desc || ''
+    const author = data.author || {}
+    const cover = data.cover || data.cover_url || cleanImages[0] || ''
+
+    return {
+      type: videoUrl ? 'video' : (cleanImages.length > 0 ? 'image' : 'video'),
+      title,
+      desc: title,
+      author: {
+        name: typeof author === 'string' ? author : (author.nickname || author.name || ''),
+        avatar: author.avatar || ''
+      },
+      cover,
+      url: videoUrl,
+      quality: data.quality || '',
+      duration: data.duration ?? null,
+      images: cleanImages,
+      live_photo: Array.isArray(data.live_photo) ? data.live_photo : [],
+      video_backup: Array.isArray(data.video_backup) ? data.video_backup : [],
+      music: data.music && typeof data.music === 'object' ? data.music : {},
+      extra: { source: 'bugpk', sourceName: 'BugPK 经典源' }
+    }
+  } catch (err) {
+    if (err?.name === 'AbortError') throw new Error('BugPK响应超时')
+    throw err
+  } finally {
+    dispose()
+  }
+}
+
+/* ============================ 线路四：效率坊备用 ============================ */
 const describeXlfStatus = (status, message) => {
   if (status === 407) {
     const share = message.match(/https?:\/\/www\.xiaolvfang\.com\/share\/[A-Za-z0-9]+/)
     return share
-      ? `今日免费次数已用完，可点开此链接补充额度：${share[0]}`
+      ? `今日免费次数已用完，可点此链接补充额度：${share[0]}`
       : '今日免费次数已用完，请稍后再试'
   }
   if (status === 429) return '请求过于频繁，请稍后重试'
   return message || `解析失败(status ${status ?? '未知'})`
 }
 
-/** 效率坊返回 → 项目统一结构 */
 const buildXlfResult = (data) => {
   const videoUrl = typeof data.video_url === 'string' && data.video_url.trim()
     ? data.video_url.trim()
     : (typeof data.url === 'string' && data.url.trim() ? data.url.trim() : null)
-  const pics = Array.isArray(data.pics) ? data.pics.filter(Boolean) : []
+  const rawPics = Array.isArray(data.pics) ? data.pics.filter(Boolean) : []
+  const pics = rawPics.map(p => typeof p === 'string' ? p.trim() : (p?.url || p?.image || '')).filter(Boolean)
 
   if (!videoUrl && pics.length === 0) throw new Error('未返回可用媒体直链')
 
@@ -177,7 +333,7 @@ const buildXlfResult = (data) => {
     live_photo: [],
     video_backup: [],
     music: {},
-    extra: { source: 'xiaolvfang' }
+    extra: { source: 'xiaolvfang', sourceName: '效率坊备用' }
   }
 }
 
@@ -195,7 +351,7 @@ export const parseByXiaoLvFang = async (shareUrl, outerSignal) => {
         'Accept': 'application/json',
         'Origin': XLF_SITE,
         'Referer': XLF_REFERER,
-        'timestamg': String(Date.now()) // 原站拼写如此，勿改
+        'timestamg': String(Date.now())
       },
       body: JSON.stringify({ url: cleanUrl })
     })
@@ -206,27 +362,19 @@ export const parseByXiaoLvFang = async (shareUrl, outerSignal) => {
 
     const statusCode = Number(res?.status)
     if (!(res?.success === true || statusCode === 200)) {
-      // 额度耗尽 → 进入本地冷却，后续竞速不再打扰它
-      if (statusCode === 407) markCooldown()
+      if (statusCode === 407 || statusCode === 403) markCooldown()
       throw new Error(describeXlfStatus(statusCode, pickMessage(res)))
     }
     return buildXlfResult(res.data || {})
   } catch (err) {
-    if (err?.name === 'AbortError') throw new Error('解析超时')
+    if (err?.name === 'AbortError') throw new Error('效率坊响应超时')
     throw err
   } finally {
     dispose()
   }
 }
 
-/* ========================== 并发竞速调度 ========================== */
-
-/**
- * 并发竞速：所有线路同时发起，第一个成功的结果胜出，其余全部取消。
- * @param {string} shareUrl
- * @param {AbortSignal} [signal] 外部取消信号
- * @param {Array<{name: string, run: (u: string, s?: AbortSignal) => Promise<object>, skip?: () => boolean}>} racers
- */
+/* ============================ 线路五：并发竞速调度 ============================ */
 export const raceParse = async (shareUrl, signal, racers) => {
   const active = (racers || []).filter(r => !(typeof r.skip === 'function' && r.skip()))
   if (active.length === 0) throw new Error('当前没有可用的解析线路')
@@ -248,7 +396,6 @@ export const raceParse = async (shareUrl, signal, racers) => {
   })
 
   try {
-    // Promise.any：第一个成功即返回；全部失败才抛 AggregateError
     const winner = await Promise.any(attempts.map(a => a.promise))
     return winner
   } catch (agg) {
@@ -264,4 +411,12 @@ export const raceParse = async (shareUrl, signal, racers) => {
   }
 }
 
-export default { parseByZacao, parseByXiaoLvFang, raceParse, isXlfCoolingDown }
+export default {
+  AVAILABLE_SOURCES,
+  parseByLayzz,
+  parseByZacao,
+  parseByBugPk,
+  parseByXiaoLvFang,
+  raceParse,
+  isXlfCoolingDown
+}

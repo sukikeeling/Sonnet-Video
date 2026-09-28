@@ -344,6 +344,10 @@ const toggleSection = (key) => {
             <i :class="['fas', mediaTypeBadge.icon]"></i>
             {{ mediaTypeBadge.text }}
           </span>
+          <span v-if="resultData.extra?.sourceName" class="rs-header-badge" style="background: rgba(236, 72, 153, 0.12); color: #ec4899; border: 1px solid rgba(236, 72, 153, 0.25);">
+            <i class="fas fa-server"></i>
+            {{ resultData.extra.sourceName }}
+          </span>
         </div>
         <div class="rs-header-right">
           <span class="rs-header-hint">
@@ -436,7 +440,7 @@ const toggleSection = (key) => {
               class="rs-gallery-item"
               :aria-label="`${t(locale, 'preview')} ${idx + 1}`"
             >
-              <img :src="img" class="rs-gallery-img" :alt="`${t(locale, 'imagesTitle')} ${idx + 1}`" loading="lazy" />
+              <img :src="img" class="rs-gallery-img" referrerpolicy="no-referrer" :alt="`${t(locale, 'imagesTitle')} ${idx + 1}`" loading="lazy" />
               <div class="rs-gallery-mask">
                 <i class="fas fa-search-plus"></i>
               </div>
@@ -784,6 +788,7 @@ const toggleSection = (key) => {
             <img
               :src="resultData.images[activeImageIndex]"
               class="rs-modal-img"
+              referrerpolicy="no-referrer"
               :alt="`${t(locale, 'imagesTitle')} ${activeImageIndex + 1}`"
             />
           </div>

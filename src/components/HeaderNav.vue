@@ -37,8 +37,8 @@ const navLinks = [
 ]
 
 const labels = {
-  'zh-CN': { brand: 'Sonnet', subtitle: '无水印解析', home: '首页', course: '教程', platforms: '平台', faq: '常见问题', about: '关于', menu: '菜单', close: '关闭' },
-  'en': { brand: 'Sonnet', subtitle: 'No Watermark', home: 'Home', course: 'Tutorial', platforms: 'Platforms', faq: 'FAQ', about: 'About', menu: 'Menu', close: 'Close' }
+  'zh-CN': { brand: 'Sonnet Video', subtitle: '莫宁限定 · v2.8', home: '首页', course: '教程', platforms: '平台', faq: '常见问题', about: '关于', menu: '菜单', close: '关闭' },
+  'en': { brand: 'Sonnet Video', subtitle: 'MoNing Ed · v2.8', home: 'Home', course: 'Tutorial', platforms: 'Platforms', faq: 'FAQ', about: 'About', menu: 'Menu', close: 'Close' }
 }
 
 const getLabel = (locale, key) => labels[locale]?.[key] || labels['zh-CN'][key]

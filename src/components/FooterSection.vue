@@ -3,22 +3,22 @@ defineProps({ locale: String })
 
 const content = {
   'zh-CN': {
-    brand: 'Sonnet',
-    version: 'v1.0',
-    desc: '简洁高效的短视频解析工具，支持多平台无水印视频与图集解析。',
+    brand: 'Sonnet Video · 莫宁星空限定版',
+    version: 'v2.8',
+    desc: '阿宁殿下专属高定工具箱 · 支持多平台超清无水印图集与视频秒级解析，自由选站与智能竞速。',
     quickLinks: '快速链接',
     home: '首页', course: '使用教程', platforms: '支持平台',
     help: '帮助与支持',
     faq: '常见问题', about: '关于我们',
     contact: '联系我们',
-    copyright: 'Sonnet · 保留所有权利',
+    copyright: 'Sonnet Video · 莫宁星空专属保留',
     starUs: 'GitHub',
     issues: '问题反馈'
   },
   'en': {
-    brand: 'Sonnet',
-    version: 'v1.0',
-    desc: 'Simple & easy video parsing tool. Support multi-platform watermark-free video & album extraction.',
+    brand: 'Sonnet Video · MoNing Edition',
+    version: 'v2.8',
+    desc: 'Exclusive tailored edition for A\'Ning. High-speed multi-platform video & album extraction.',
     quickLinks: 'Quick Links',
     home: 'Home', course: 'Tutorial', platforms: 'Platforms',
     help: 'Help & Support',

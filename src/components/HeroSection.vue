@@ -8,50 +8,54 @@ const props = defineProps({
   isError: Boolean,
   parseError: String,
   locale: String,
-  currentPlatform: String
+  currentPlatform: String,
+  currentSource: { type: String, default: 'auto' },
+  availableSources: { type: Array, default: () => [] }
 })
 
-const emit = defineEmits(['update:inputUrl', 'parse', 'select-platform'])
+const emit = defineEmits(['update:inputUrl', 'parse', 'select-platform', 'select-source'])
 
 const videoStore = useVideoStore()
 
 const content = {
   'zh-CN': {
-    badge: 'Sonnet · 多平台无水印解析',
-    title1: '轻松解析',
-    title2: '任何',
-    title3: '短视频',
-    desc: '支持抖音、快手、B站、小红书等主流平台，一键提取无水印视频与图集，简单免费。',
-    inputLabel: '视频链接',
-    placeholder: '粘贴分享链接或含链接的文本…',
-    button: '开始解析',
-    loading: '正在解析…',
-    error: '重新解析',
-    errorTitle: '解析没有完成',
-    errorHint: '请检查作品是否公开可访问，或切换平台后再试一次。',
+    badge: '🌸 Sonnet Video · 莫宁星空限定版 (v2.8)',
+    title1: '心动解析 · ',
+    title2: '一触即达',
+    title3: ' 莫宁专属',
+    desc: '阿宁殿下专属高定工具箱 · 支持小红书、抖音、快手、B站等各大主流平台，一键提取无水印原画视频与超清图集，自由选站智能竞速！',
+    inputLabel: '视频或图集链接',
+    placeholder: '粘贴小红书/抖音/B站/快手分享链接或含链接文本…',
+    button: '一键极速解析',
+    loading: '正在竞速解析中…',
+    error: '重试解析',
+    errorTitle: '解析暂未完成',
+    errorHint: '请检查链接是否完整公开，或尝试切换下方【解析线路】后再试一次哦~',
     features: [
-      { icon: 'fa-check-circle', color: 'text-emerald-500', label: '无水印' },
-      { icon: 'fa-bolt', color: 'text-amber-500', label: '高速解析' },
-      { icon: 'fa-gift', color: 'text-pink-500', label: '完全免费' }
+      { icon: 'fa-sparkles', color: 'text-pink-500', label: '莫宁专属定制' },
+      { icon: 'fa-bolt', color: 'text-amber-500', label: '智能多路竞速' },
+      { icon: 'fa-images', color: 'text-emerald-500', label: '原图无损直链' },
+      { icon: 'fa-shield-heart', color: 'text-rose-500', label: '星空永恒守护' }
     ]
   },
   'en': {
-    badge: 'Sonnet · Multi-Platform Parser',
-    title1: 'Parse ',
-    title2: 'Any',
-    title3: ' Short Video',
-    desc: 'Support Douyin, Kuaishou, Bilibili, Xiaohongshu and more. Extract videos & albums without watermark, simple and free.',
-    inputLabel: 'Video URL',
-    placeholder: 'Paste a share link or text containing a link…',
-    button: 'Start Parsing',
-    loading: 'Parsing…',
+    badge: '🌸 Sonnet Video · MoNing Special Edition (v2.8)',
+    title1: 'Magic Parse · ',
+    title2: 'Pure & Fast',
+    title3: " For A'Ning",
+    desc: "Customized edition for A'Ning. Extract watermark-free media from Xiaohongshu, Douyin, Bilibili and more with multi-engine selection.",
+    inputLabel: 'Video or Album URL',
+    placeholder: 'Paste video or album link here…',
+    button: 'Quick Parse',
+    loading: 'Parsing via race engines…',
     error: 'Retry',
-    errorTitle: 'Parsing did not finish',
-    errorHint: 'Check that the post is public, or switch platform and try again.',
+    errorTitle: 'Parsing was interrupted',
+    errorHint: 'Please verify the link is public or switch parsing engine below.',
     features: [
-      { icon: 'fa-check-circle', color: 'text-emerald-500', label: 'No Watermark' },
-      { icon: 'fa-bolt', color: 'text-amber-500', label: 'Fast Parse' },
-      { icon: 'fa-gift', color: 'text-pink-500', label: 'Free' }
+      { icon: 'fa-sparkles', color: 'text-pink-500', label: 'Custom Tailored' },
+      { icon: 'fa-bolt', color: 'text-amber-500', label: 'Multi-Engine Race' },
+      { icon: 'fa-images', color: 'text-emerald-500', label: 'Original Quality' },
+      { icon: 'fa-shield-heart', color: 'text-rose-500', label: 'Eternal Guard' }
     ]
   }
 }
@@ -123,7 +127,7 @@ const selectPlatform = (key) => emit('select-platform', key)
       <!-- Input Area -->
       <div class="max-w-xl sm:max-w-2xl mx-auto animate-slide-up" style="animation-delay: 400ms">
         <!-- Platform Tabs -->
-        <div class="flex flex-wrap justify-center gap-2 mb-4">
+        <div class="flex flex-wrap justify-center gap-2 mb-3">
           <button
             v-for="tab in getPlatformTabs(locale)"
             :key="tab.key"
@@ -138,6 +142,47 @@ const selectPlatform = (key) => emit('select-platform', key)
             <i :class="['fas', tab.icon]"></i>
             <span>{{ tab.label }}</span>
           </button>
+        </div>
+
+        <!-- Engine / Source Selection Bar (可视化选站解析) -->
+        <div v-if="availableSources && availableSources.length > 0" class="mb-4">
+          <div class="flex items-center justify-between px-1 mb-1.5">
+            <span class="text-[11px] font-semibold tracking-wide text-[var(--c-fg-3)] flex items-center gap-1.5">
+              <i class="fas fa-tower-broadcast text-pink-400"></i>
+              <span>解析线路自由选站：</span>
+            </span>
+            <span class="text-[10px] text-pink-500 font-medium">
+              当前：{{ availableSources.find(s => s.key === currentSource)?.name || '智能极速竞速' }}
+            </span>
+          </div>
+          <div class="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+            <button
+              v-for="src in availableSources"
+              :key="src.key"
+              @click="emit('select-source', src.key)"
+              :title="src.desc"
+              type="button"
+              :class="[
+                'px-2 py-2 rounded-xl text-xs font-medium transition-all duration-200 flex flex-col items-center justify-center gap-1 border relative overflow-hidden',
+                currentSource === src.key
+                  ? 'bg-gradient-to-br from-pink-500/15 via-rose-500/15 to-amber-500/15 text-pink-600 dark:text-pink-300 border-pink-400 dark:border-pink-500/60 shadow-sm shadow-pink-500/10 font-semibold ring-2 ring-pink-400/20'
+                  : 'bg-[var(--c-bg-elevated)] text-[var(--c-fg-2)] border-[var(--c-border)] hover:border-pink-300 dark:hover:border-pink-700 hover:text-pink-500'
+              ]"
+            >
+              <div class="flex items-center gap-1.5">
+                <i :class="['fas text-xs', src.icon, currentSource === src.key ? 'text-pink-500' : 'text-[var(--c-fg-3)]']"></i>
+                <span class="text-[11px] truncate">{{ src.name }}</span>
+              </div>
+              <span
+                :class="[
+                  'text-[9px] px-1 py-0.2 rounded-full font-normal leading-tight scale-90 whitespace-nowrap',
+                  currentSource === src.key
+                    ? 'bg-pink-500 text-white font-medium'
+                    : 'bg-black/5 dark:bg-white/10 text-[var(--c-fg-3)]'
+                ]"
+              >{{ src.badge.split('·')[0].trim() }}</span>
+            </button>
+          </div>
         </div>
 
         <!-- Search Input -->

@@ -14,7 +14,15 @@ import ProgressModal from './components/ProgressModal.vue'
 import ParticlesCanvas from './components/ParticlesCanvas.vue'
 import DownloadCard from './components/DownloadCard.vue'
 import HistoryModal from './components/HistoryModal.vue'
-import { parseByZacao, parseByXiaoLvFang, raceParse, isXlfCoolingDown } from './services/parseSources'
+import {
+  parseByZacao,
+  parseByLayzz,
+  parseByBugPk,
+  parseByXiaoLvFang,
+  raceParse,
+  isXlfCoolingDown,
+  AVAILABLE_SOURCES
+} from './services/parseSources'
 import { useButtonControl } from './composables/useButtonControl'
 import { useI18n } from './composables/useI18n'
 
@@ -81,6 +89,15 @@ const showBackup = ref(false)
 const inputUrl = ref('')
 const parseError = ref('')
 const currentPlatform = ref('all')
+const currentSource = ref('auto')
+const selectSource = (key) => {
+  currentSource.value = key
+  parseError.value = ''
+  const s = AVAILABLE_SOURCES.find(item => item.key === key)
+  if (s) {
+    showToast(`已切换至【${s.name}】线路`, 'info', 1800)
+  }
+}
 const currentVideoUrl = ref('')
 const PARSE_TIMEOUT_MS = 55000
 // 主源独立超时：bugpk 等公共接口近期频繁卡死（实测可达 35-40 秒无响应），
@@ -165,11 +182,12 @@ const ESCAPE_MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'":
 const blobUrlCache = new Map()
 
 const cleanUrl = (url) => {
-  if (!url) return ''
+  if (!url || typeof url !== 'string') return ''
   return String(url).replace(ESCAPE_REGEX, m => ESCAPE_MAP[m])
 }
 
 const getBlobUrl = async (originalUrl) => {
+  if (!originalUrl || typeof originalUrl !== 'string') return ''
   if (blobUrlCache.has(originalUrl)) return blobUrlCache.get(originalUrl)
   try {
     const response = await fetch(originalUrl, { method: 'GET', mode: 'cors', referrer: '' })
@@ -183,15 +201,22 @@ const getBlobUrl = async (originalUrl) => {
 }
 
 const preloadMedia = async (resultData) => {
-  if (resultData.images) {
+  if (!resultData) return
+  if (Array.isArray(resultData.images)) {
     for (let i = 0; i < resultData.images.length; i++) {
-      resultData.images[i] = await getBlobUrl(resultData.images[i])
+      if (typeof resultData.images[i] === 'string') {
+        resultData.images[i] = await getBlobUrl(resultData.images[i])
+      }
     }
   }
-  if (resultData.music?.url) resultData.music.url = await getBlobUrl(resultData.music.url)
-  if (resultData.video_backup) {
+  if (resultData.music?.url && typeof resultData.music.url === 'string') {
+    resultData.music.url = await getBlobUrl(resultData.music.url)
+  }
+  if (Array.isArray(resultData.video_backup)) {
     for (const backup of resultData.video_backup) {
-      if (backup.url) backup.url = await getBlobUrl(backup.url)
+      if (backup?.url && typeof backup.url === 'string') {
+        backup.url = await getBlobUrl(backup.url)
+      }
     }
   }
 }
@@ -322,7 +347,7 @@ const parseVideo = async () => {
   if (extractedUrl) inputUrl.value = extractedUrl
   const url = extractedUrl || inputUrl.value
   if (!url || !url.startsWith('http')) {
-    const message = '请输入有效的视频分享链接'
+    const message = '请输入有效的短视频或图集分享链接哦~'
     parseError.value = message
     showToast(message, 'warning', 4000)
     return
@@ -332,51 +357,35 @@ const parseVideo = async () => {
     currentVideoUrl.value = ''
     showBackup.value = false
 
-    // 解析策略：主源优先，主源失败才降级到效率坊(xiaolvfang)兜底。
-    // 说明：不做并发竞速——主源能成功就绝不打扰备用平台，避免无谓消耗对方配额，
-    //      也避免备用平台的限流影响正常速度。只有主源真的报错/超时/返回不可用时才切换。
     const abortController = new AbortController()
     const signal = abortController.signal
-
-    // 主源：独立超时，超时/异常/业务失败一律抛出，交给兜底接管
-    const mainTask = async () => {
-      const apiUrl = PLATFORM_API_MAP[currentPlatform.value] || PLATFORM_API_MAP.all
-      const primaryController = new AbortController()
-      const onOuterAbort = () => primaryController.abort()
-      const primaryTimer = window.setTimeout(() => primaryController.abort(), PRIMARY_TIMEOUT_MS)
-      if (signal.aborted) primaryController.abort()
-      else signal.addEventListener('abort', onOuterAbort, { once: true })
-
-      try {
-        const res = await fetch(`${apiUrl}?url=${encodeURIComponent(url)}`, {
-          method: 'GET',
-          signal: primaryController.signal,
-          headers: { Accept: 'application/json' }
-        })
-        if (!res.ok) throw new Error(`主源响应异常(HTTP ${res.status})`)
-        const json = await res.json()
-        return normalizeParserResponse(json)
-      } catch (e) {
-        if (e?.name === 'AbortError') {
-          throw new Error(`主源响应超时（>${PRIMARY_TIMEOUT_MS / 1000}秒）`)
-        }
-        throw e
-      } finally {
-        window.clearTimeout(primaryTimer)
-        signal.removeEventListener('abort', onOuterAbort)
-      }
-    }
-
-    // 并发竞速：主源 + 多条备用线路同时发起，谁先成功用谁，其余立即取消。
-    // 配额保护：效率坊额度耗尽后进入 30 分钟本地冷却，冷却期内不参与竞速，
-    //          避免重复撞击已被打爆的免费额度（那只会浪费时间且拿不到结果）。
     let resultData = null
+
     try {
-      resultData = await raceParse(url, signal, [
-        { name: '主源', run: (u, s) => mainTask() },
-        { name: '备用线路A', run: (u, s) => parseByZacao(u, s) },
-        { name: '备用线路B', run: (u, s) => parseByXiaoLvFang(u, s), skip: () => isXlfCoolingDown() }
-      ])
+      if (currentSource.value === 'auto') {
+        // 智能并发竞速模式：全开
+        resultData = await raceParse(url, signal, [
+          { name: '凌云聚合源', run: (u, s) => parseByLayzz(u, s) },
+          { name: '杂草极速源', run: (u, s) => parseByZacao(u, s) },
+          { name: 'BugPK经典源', run: (u, s) => parseByBugPk(u, s, currentPlatform.value) },
+          { name: '效率坊备用', run: (u, s) => parseByXiaoLvFang(u, s), skip: () => isXlfCoolingDown() }
+        ])
+      } else if (currentSource.value === 'layzz') {
+        resultData = await parseByLayzz(url, signal)
+      } else if (currentSource.value === 'zacao') {
+        resultData = await parseByZacao(url, signal)
+      } else if (currentSource.value === 'bugpk') {
+        resultData = await parseByBugPk(url, signal, currentPlatform.value)
+      } else if (currentSource.value === 'xiaolvfang') {
+        resultData = await parseByXiaoLvFang(url, signal)
+      } else {
+        resultData = await raceParse(url, signal, [
+          { name: '凌云聚合源', run: (u, s) => parseByLayzz(u, s) },
+          { name: '杂草极速源', run: (u, s) => parseByZacao(u, s) },
+          { name: 'BugPK经典源', run: (u, s) => parseByBugPk(u, s, currentPlatform.value) },
+          { name: '效率坊备用', run: (u, s) => parseByXiaoLvFang(u, s), skip: () => isXlfCoolingDown() }
+        ])
+      }
     } finally {
       abortController.abort()
     }
@@ -390,8 +399,12 @@ const parseVideo = async () => {
     try { videoStore.initSwiper() } catch (e) { console.warn('Swiper初始化失败:', e) }
     return resultData
   }, { disableRetry: true, disableTimeout: true })
+
   if (!result) {
-    const errorMsg = getFriendlyParseError(parseButton.error.value)
+    let errorMsg = getFriendlyParseError(parseButton.error.value)
+    if (currentSource.value !== 'auto') {
+      errorMsg += '（提示：可尝试切换到【智能极速竞速】线路自动聚合解析哦）'
+    }
     parseError.value = errorMsg
     showToast(errorMsg, 'error', 6000)
   } else {
@@ -401,8 +414,7 @@ const parseVideo = async () => {
     } catch (e) {
       console.warn('保存历史记录失败:', e)
     }
-    const SOURCE_LABELS = { zacao: '（备用线路A）', xiaolvfang: '（备用线路B）' }
-    const srcName = SOURCE_LABELS[result.extra?.source] || ''
+    const srcName = result.extra?.sourceName ? `（${result.extra.sourceName}）` : ''
     showToast(`解析成功${srcName}，已自动保存记录`, 'success', 2200)
   }
 }
@@ -744,8 +756,11 @@ onMounted(() => {
         :parse-error="parseError"
         :locale="locale"
         :current-platform="currentPlatform"
+        :current-source="currentSource"
+        :available-sources="AVAILABLE_SOURCES"
         @parse="parseVideo"
         @select-platform="selectPlatform"
+        @select-source="selectSource"
       />
 
       <Transition name="result-fade" mode="out-in">
