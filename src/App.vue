@@ -137,11 +137,35 @@ const MD5 = (str) => {
 
 const downloadCounter = new Map()
 
-const getDownloadFilename = (url, ext) => {
+const sanitizeFilenamePart = (str) => {
+  return String(str || '')
+    .replace(/[\\/:*?"<>|\r\n\t#\[\]]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+const getDownloadFilename = (url, ext, hintTitle = '') => {
+  const safe = sanitizeFilenamePart(hintTitle)
+  if (safe) {
+    const truncated = safe.length > 50 ? safe.slice(0, 50).trim() : safe
+    const count = downloadCounter.get(truncated) || 0
+    downloadCounter.set(truncated, count + 1)
+    const suffix = count > 0 ? `_${count + 1}` : ''
+    return `${truncated}${suffix}.${ext}`
+  }
   const base = MD5(url)
   const count = downloadCounter.get(base) || 0
   downloadCounter.set(base, count + 1)
   return `${base}_${count + 1}.${ext}`
+}
+
+const getMediaBaseTitle = (suffix = '') => {
+  const d = videoStore.resultData
+  if (!d) return ''
+  const authorName = (typeof d.author === 'string' ? d.author : d.author?.name) || ''
+  const title = (d.title || d.desc || '').slice(0, 30)
+  const parts = [authorName, title, suffix].filter(Boolean)
+  return parts.join(' - ')
 }
 
 // 从 URL 提取原始扩展名（保留原格式：webp/png/jpg/mp4...），无扩展名时用兜底
@@ -543,7 +567,7 @@ const downloadFile = async (url, filename, downloadId, options = {}) => {
 const downloadMainVideo = () => {
   if (videoStore.resultData?.url) {
     const url = currentVideoUrl.value || videoStore.resultData.url
-    const filename = getDownloadFilename(url, 'mp4')
+    const filename = getDownloadFilename(url, 'mp4', getMediaBaseTitle())
     const downloadId = videoStore.addDownload({ filename, url })
     downloadFile(url, filename, downloadId)
   }
@@ -551,7 +575,7 @@ const downloadMainVideo = () => {
 
 const downloadBackupVideo = (backup) => {
   if (backup?.url) {
-    const filename = getDownloadFilename(backup.url, 'mp4')
+    const filename = getDownloadFilename(backup.url, 'mp4', getMediaBaseTitle(backup.quality || '备用源'))
     const downloadId = videoStore.addDownload({ filename, url: backup.url })
     downloadFile(backup.url, filename, downloadId)
   }
@@ -561,8 +585,8 @@ const downloadBackupVideo = (backup) => {
 const downloadAllImages = async () => {
   if (!videoStore.resultData?.images?.length) return
   const images = videoStore.resultData.images
-  const results = await runConcurrent(images, 3, async (url) => {
-    const filename = getDownloadFilename(url, getUrlExt(url, 'jpg'))
+  const results = await runConcurrent(images, 3, async (url, idx) => {
+    const filename = getDownloadFilename(url, getUrlExt(url, 'jpg'), getMediaBaseTitle(`图集_${idx + 1}`))
     const downloadId = videoStore.addDownload({ filename, url })
     return downloadFile(url, filename, downloadId, { silent: true })
   })
@@ -576,15 +600,19 @@ const downloadAll = async () => {
   const resultData = videoStore.resultData
   if (!resultData) return
   const tasks = []
-  if (resultData.url) tasks.push({ url: resultData.url, ext: 'mp4' })
-  for (const img of (resultData.images || [])) tasks.push({ url: img, ext: getUrlExt(img, 'jpg') })
-  for (const item of (resultData.live_photo || [])) {
-    if (item.image) tasks.push({ url: item.image, ext: getUrlExt(item.image, 'jpg') })
-    if (item.video) tasks.push({ url: item.video, ext: 'mp4' })
+  if (resultData.url) tasks.push({ url: resultData.url, ext: 'mp4', label: getMediaBaseTitle() })
+  for (let i = 0; i < (resultData.images || []).length; i++) {
+    const img = resultData.images[i]
+    tasks.push({ url: img, ext: getUrlExt(img, 'jpg'), label: getMediaBaseTitle(`图集_${i + 1}`) })
+  }
+  for (let i = 0; i < (resultData.live_photo || []).length; i++) {
+    const item = resultData.live_photo[i]
+    if (item.image) tasks.push({ url: item.image, ext: getUrlExt(item.image, 'jpg'), label: getMediaBaseTitle(`实况封面_${i + 1}`) })
+    if (item.video) tasks.push({ url: item.video, ext: 'mp4', label: getMediaBaseTitle(`实况动图_${i + 1}`) })
   }
   if (!tasks.length) { showToast('没有可下载的资源', 'warning'); return }
   const results = await runConcurrent(tasks, 3, async (task) => {
-    const filename = getDownloadFilename(task.url, task.ext)
+    const filename = getDownloadFilename(task.url, task.ext, task.label)
     const downloadId = videoStore.addDownload({ filename, url: task.url })
     return downloadFile(task.url, filename, downloadId, { silent: true })
   })
@@ -596,7 +624,7 @@ const downloadAll = async () => {
 const downloadMusic = (music) => {
   if (music?.url) {
     const ext = music.url.includes('.mp3') ? 'mp3' : music.url.includes('.m4a') ? 'm4a' : 'mp3'
-    const filename = getDownloadFilename(music.url, ext)
+    const filename = getDownloadFilename(music.url, ext, music.title || getMediaBaseTitle('原声音乐'))
     const downloadId = videoStore.addDownload({ filename, url: music.url })
     downloadFile(music.url, filename, downloadId)
   }
@@ -604,7 +632,7 @@ const downloadMusic = (music) => {
 
 const downloadLiveVideo = (item) => {
   if (item?.video) {
-    const filename = getDownloadFilename(item.video, 'mp4')
+    const filename = getDownloadFilename(item.video, 'mp4', getMediaBaseTitle('实况视频'))
     const downloadId = videoStore.addDownload({ filename, url: item.video })
     downloadFile(item.video, filename, downloadId)
   }
@@ -612,7 +640,7 @@ const downloadLiveVideo = (item) => {
 
 const downloadLiveCover = (item) => {
   if (item?.image) {
-    const filename = getDownloadFilename(item.image, 'jpg')
+    const filename = getDownloadFilename(item.image, 'jpg', getMediaBaseTitle('实况封面'))
     const downloadId = videoStore.addDownload({ filename, url: item.image })
     downloadFile(item.image, filename, downloadId)
   }
@@ -623,13 +651,14 @@ const downloadAllLivePhotos = async () => {
   const photos = videoStore.resultData?.live_photo
   if (!photos?.length) return
   const tasks = []
-  for (const item of photos) {
-    if (item.image) tasks.push({ url: item.image, ext: getUrlExt(item.image, 'jpg') })
-    if (item.video) tasks.push({ url: item.video, ext: 'mp4' })
+  for (let i = 0; i < photos.length; i++) {
+    const item = photos[i]
+    if (item.image) tasks.push({ url: item.image, ext: getUrlExt(item.image, 'jpg'), label: getMediaBaseTitle(`实况封面_${i + 1}`) })
+    if (item.video) tasks.push({ url: item.video, ext: 'mp4', label: getMediaBaseTitle(`实况动图_${i + 1}`) })
   }
   if (!tasks.length) { showToast('没有可下载的实况', 'warning'); return }
   const results = await runConcurrent(tasks, 3, async (task) => {
-    const filename = getDownloadFilename(task.url, task.ext)
+    const filename = getDownloadFilename(task.url, task.ext, task.label)
     const downloadId = videoStore.addDownload({ filename, url: task.url })
     return downloadFile(task.url, filename, downloadId, { silent: true })
   })
@@ -644,8 +673,8 @@ const downloadAllLiveCovers = async () => {
   if (!photos?.length) return
   const covers = photos.map(item => item.image).filter(Boolean)
   if (!covers.length) { showToast('没有可下载的封面', 'warning'); return }
-  const results = await runConcurrent(covers, 3, async (url) => {
-    const filename = getDownloadFilename(url, getUrlExt(url, 'jpg'))
+  const results = await runConcurrent(covers, 3, async (url, idx) => {
+    const filename = getDownloadFilename(url, getUrlExt(url, 'jpg'), getMediaBaseTitle(`实况封面_${idx + 1}`))
     const downloadId = videoStore.addDownload({ filename, url })
     return downloadFile(url, filename, downloadId, { silent: true })
   })
@@ -657,7 +686,7 @@ const downloadAllLiveCovers = async () => {
 // 单张图片下载（图片集里挑一张好看的单独保存）
 const downloadSingleImage = (url) => {
   if (!url) return
-  const filename = getDownloadFilename(url, getUrlExt(url, 'jpg'))
+  const filename = getDownloadFilename(url, getUrlExt(url, 'jpg'), getMediaBaseTitle('单张精选'))
   const downloadId = videoStore.addDownload({ filename, url })
   downloadFile(url, filename, downloadId)
 }
