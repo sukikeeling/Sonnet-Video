@@ -601,6 +601,7 @@ export const parseByDouyinDirect = async (shareUrl, outerSignal) => {
 
     // 3. 异步获取 ttwid 凭据
     const ttwidPromise = fetchTtwid(signal)
+    let firstHtml = ''
 
     // 若无 awemeId，则跟随短链重定向
     if (!awemeId) {
@@ -613,10 +614,35 @@ export const parseByDouyinDirect = async (shareUrl, outerSignal) => {
         },
         redirect: 'follow'
       })
+
+      // 3.1 尝试从重定向后的 finalUrl 匹配
       const finalUrl = firstRes.url || targetUrl
-      const finalIdMatch = finalUrl.match(/\/(?:video|slides|note)\/(\d+)/i)
+      const finalIdMatch = finalUrl.match(/\/(?:video|slides|note)\/(\d+)/i) || finalUrl.match(/iesdouyin\.com\/(?:share\/)?video\/(\d+)/i)
       if (finalIdMatch) {
         awemeId = finalIdMatch[1]
+      }
+
+      // 3.2 尝试从 Location 响应头匹配
+      if (!awemeId) {
+        const loc = firstRes.headers?.get('location') || firstRes.headers?.get('Location')
+        if (loc) {
+          const locMatch = loc.match(/\/(?:video|slides|note)\/(\d+)/i) || loc.match(/iesdouyin\.com\/(?:share\/)?video\/(\d+)/i)
+          if (locMatch) awemeId = locMatch[1]
+        }
+      }
+
+      // 3.3 核心穿透兜底：从首包 HTML 文本提取（适配 Android Capacitor 中原生底层 url 未更新的情况）
+      firstHtml = await firstRes.text()
+      if (!awemeId && firstHtml) {
+        const htmlMatch = firstHtml.match(/["']itemId["']:\s*["'](\d+)["']/i)
+          || firstHtml.match(/["']lastPath["']:\s*["'](\d+)["']/i)
+          || firstHtml.match(/\/(?:video|slides|note)\/(\d+)/i)
+          || firstHtml.match(/\/share\/video\/(\d+)/i)
+          || firstHtml.match(/aweme_id=(\d+)/i)
+          || firstHtml.match(/mid=(\d+)/i)
+        if (htmlMatch) {
+          awemeId = htmlMatch[1]
+        }
       }
     }
 
@@ -633,31 +659,47 @@ export const parseByDouyinDirect = async (shareUrl, outerSignal) => {
       headers['Cookie'] = `ttwid=${ttwid}`
     }
 
-    const pageUrl = `https://www.iesdouyin.com/share/video/${awemeId}/`
-    const pageRes = await fetch(pageUrl, {
-      method: 'GET',
-      signal,
-      headers
-    })
-    if (!pageRes.ok) throw new Error(`抖音页面请求失败(HTTP ${pageRes.status})`)
-    const html = await pageRes.text()
+    // 4. 获取详细页面 HTML（如果首包已有有效 router 数据且包含 videoInfoRes 则复用，否则带凭据请求专用详情页）
+    let html = ''
+    let parsed = null
 
-    // 4. 解析页面内嵌 _ROUTER_DATA / RENDER_DATA
-    const routerMatch = html.match(/window\._ROUTER_DATA\s*=\s*(\{.*?\});?\s*<\/script>/)
-      || html.match(/<script\s+id="RENDER_DATA"\s+type="application\/json"[^>]*>(.*?)<\/script>/)
-    if (!routerMatch) {
-      throw new Error('未在抖音页面中找到有效数据结构')
+    const tryParseRouter = (text) => {
+      if (!text) return null
+      const rm = text.match(/window\._ROUTER_DATA\s*=\s*(\{.*?\});?\s*<\/script>/)
+        || text.match(/<script\s+id="RENDER_DATA"\s+type="application\/json"[^>]*>(.*?)<\/script>/)
+      if (!rm) return null
+      try {
+        let rawJson = rm[1]
+        if (rawJson.startsWith('%7B') || rawJson.startsWith('%7b')) rawJson = decodeURIComponent(rawJson)
+        return JSON.parse(rawJson)
+      } catch (e) {
+        return null
+      }
     }
 
-    let parsed = null
-    try {
-      let rawJson = routerMatch[1]
-      if (rawJson.startsWith('%7B') || rawJson.startsWith('%7b')) {
-        rawJson = decodeURIComponent(rawJson)
+    if (firstHtml) {
+      const p = tryParseRouter(firstHtml)
+      const pk = Object.keys(p?.loaderData || {}).find(k => k.includes('page'))
+      if (p?.loaderData?.[pk]?.videoInfoRes?.item_list?.[0]) {
+        parsed = p
+        html = firstHtml
       }
-      parsed = JSON.parse(rawJson)
-    } catch (e) {
-      throw new Error('解析抖音页面数据失败')
+    }
+
+    if (!parsed) {
+      const pageUrl = `https://www.iesdouyin.com/share/video/${awemeId}/`
+      const pageRes = await fetch(pageUrl, {
+        method: 'GET',
+        signal,
+        headers
+      })
+      if (!pageRes.ok) throw new Error(`抖音页面请求失败(HTTP ${pageRes.status})`)
+      html = await pageRes.text()
+      parsed = tryParseRouter(html)
+    }
+
+    if (!parsed) {
+      throw new Error('未在抖音页面中找到有效数据结构')
     }
 
     // 5. 定位 itemStruct / item_list
