@@ -731,17 +731,43 @@ export const parseByDouyinDirect = async (shareUrl, outerSignal) => {
       avatar: toHttps(item.author?.avatar_thumb?.url_list?.[0] || item.author?.avatar_medium?.url_list?.[0] || '')
     }
 
-    // 处理无水印视频地址：替换 playwm -> play
+    // 处理无水印视频地址：优先提取 video_id 构造 1080P/720P 官方直调线路 (强制 line=1 避开 YDY P2P 58001 非标端口)
+    const uri = item.video?.play_addr?.uri || ''
     let rawPlayUrl = item.video?.play_addr?.url_list?.[0] || item.video?.playAddr?.url_list?.[0] || null
-    let mainVideo = rawPlayUrl ? toHttps(rawPlayUrl.replace(/\/playwm\//g, '/play/').replace(/playwm/g, 'play')) : null
 
-    // 备用播放地址
+    let primaryStreamUrl = ''
+    if (uri) {
+      primaryStreamUrl = `https://aweme.snssdk.com/aweme/v1/play/?video_id=${uri}&ratio=1080p&line=1`
+    } else if (rawPlayUrl) {
+      primaryStreamUrl = toHttps(rawPlayUrl.replace(/\/playwm\//g, '/play/').replace(/playwm/g, 'play').replace(/line=0/g, 'line=1'))
+    }
+
+    let mainVideo = primaryStreamUrl || null
+
+    // 备用播放地址 (均为 line=1 官方安全端口)
     const videoBackup = []
-    const rawPlayList = item.video?.play_addr?.url_list || []
-    for (const u of rawPlayList) {
-      const fixed = toHttps(u.replace(/\/playwm\//g, '/play/').replace(/playwm/g, 'play'))
-      if (fixed && fixed !== mainVideo) {
-        videoBackup.push({ url: fixed })
+    if (uri) {
+      videoBackup.push({ url: `https://aweme.snssdk.com/aweme/v1/play/?video_id=${uri}&ratio=720p&line=1`, quality: '720P备用' })
+      videoBackup.push({ url: `https://aweme.snssdk.com/aweme/v1/play/?video_id=${uri}&line=1`, quality: '标清备用' })
+    }
+
+    // 关键优化：在解析期预先跟随一次重定向，解析出最终的 200 直链 (如 https://v5-...douyinvod.com/...)
+    // 这样前端 <video> 播放器与原生下载无需二次 302 跨域跳转，秒级缓冲并彻底杜绝连接非标端口
+    if (mainVideo) {
+      try {
+        const probeRes = await fetch(mainVideo, {
+          method: 'GET',
+          signal,
+          headers: {
+            'User-Agent': DOUYIN_UA
+          },
+          redirect: 'follow'
+        })
+        if (probeRes.url && probeRes.url.startsWith('https://') && !probeRes.url.includes(':58001') && probeRes.url !== mainVideo) {
+          mainVideo = probeRes.url
+        }
+      } catch (e) {
+        // 预探测失败不阻断，继续使用 1080p line=1 官方安全直链
       }
     }
 
@@ -754,6 +780,9 @@ export const parseByDouyinDirect = async (shareUrl, outerSignal) => {
     const musicUrl = toHttps(item.music?.play_url?.url_list?.[0] || '')
     const isVideo = !!mainVideo && rawImages.length === 0
 
+    const rawDuration = item.video?.duration || item.duration || 0
+    const durationSec = rawDuration > 0 ? Math.round(rawDuration / 1000) : null
+
     return {
       type: isVideo ? 'video' : 'image',
       title,
@@ -761,8 +790,8 @@ export const parseByDouyinDirect = async (shareUrl, outerSignal) => {
       author,
       cover,
       url: mainVideo,
-      quality: 'HD',
-      duration: item.duration ? Math.round(item.duration / 1000) : null,
+      quality: '1080P超清',
+      duration: durationSec,
       images: isVideo ? [] : rawImages,
       live_photo: [],
       video_backup: videoBackup,

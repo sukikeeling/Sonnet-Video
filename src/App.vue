@@ -492,7 +492,7 @@ const getDownloadHeaders = (targetUrl) => {
       'User-Agent': 'Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
     }
   }
-  if (/douyin\.com|iesdouyin\.com|douyinvod\.com|douyinpic\.com|snssdk\.com|aweme/i.test(u)) {
+  if (/douyin\.com|iesdouyin\.com|douyinvod\.com|douyinpic\.com|snssdk\.com|aweme|ydycdn\.com/i.test(u)) {
     return {
       'Referer': 'https://www.douyin.com/',
       'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1'
