@@ -11,11 +11,12 @@
 
 export const AVAILABLE_SOURCES = [
   { key: 'auto', name: '智能极速竞速', badge: '推荐 · 秒级响应', icon: 'fa-bolt', desc: '全线路并发竞速，自动选用最快结果' },
+  { key: 'douyindirect', name: '抖音专线', badge: '自研直解 · 纯净无水印', icon: 'fa-play-circle', desc: '自研协议穿透与官方设备流，秒提原画视频与无水印图集' },
+  { key: 'xhsdirect', name: '小红书专线', badge: '自研直解 · 突破登录', icon: 'fa-cube', desc: '自研密钥直解算法，突破小红书 .cn 登录墙与404' },
   { key: 'layzz', name: '凌云聚合源', badge: '全能 · 30+平台', icon: 'fa-cloud', desc: '支持抖音/小红书/快手/B站超清图文与视频' },
   { key: 'zacao', name: '杂草极速源', badge: '图文/直链专精', icon: 'fa-seedling', desc: '专精小红书图文与主流短视频直链' },
   { key: 'bugpk', name: 'BugPK 经典源', badge: '经典公共接口', icon: 'fa-cube', desc: '老牌短视频去水印公共接口' },
-  { key: 'xiaolvfang', name: '效率坊备用', badge: '独立备用节点', icon: 'fa-shield-halved', desc: '独立图文与视频备用解析线路' },
-  { key: 'xhsdirect', name: '小红书专线', badge: '自研直解 · 突破登录', icon: 'fa-cube', desc: '自研密钥直解算法，突破小红书 .cn 登录墙与404' }
+  { key: 'xiaolvfang', name: '效率坊备用', badge: '独立备用节点', icon: 'fa-shield-halved', desc: '独立图文与视频备用线路' }
 ]
 
 const ZACAO_ENDPOINT = 'https://video.zacao.top/api/parse'
@@ -540,7 +541,201 @@ export const parseByXhsDirect = async (shareUrl, outerSignal) => {
   }
 }
 
-/* ============================ 线路五：并发竞速调度 ============================ */
+/* ============================ 线路五：抖音专线 (自研协议穿透与设备流直解) ============================ */
+const DOUYIN_TIMEOUT_MS = 15000
+const DOUYIN_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
+
+/** 获取头条/抖音官方设备注册 ttwid 凭据 */
+async function fetchTtwid(outerSignal) {
+  try {
+    const { signal, dispose } = withTimeout(outerSignal, 5000)
+    try {
+      const res = await fetch('https://ttwid.bytedance.com/ttwid/union/register/', {
+        method: 'POST',
+        signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': DOUYIN_UA
+        },
+        body: JSON.stringify({
+          region: 'cn',
+          aid: 1768,
+          needFid: 'false',
+          service: 'www.ixigua.com',
+          migrate_info: { ticket: '', source: 'node' },
+          cbUrlProtocol: 'https',
+          union: 'true'
+        })
+      })
+      const setCookie = res.headers.get('set-cookie') || ''
+      const match = setCookie.match(/ttwid=([^;]+)/)
+      if (match) return match[1]
+    } finally {
+      dispose()
+    }
+  } catch (e) {
+    // 忽略注册异常，后续请求若自带 cookie 依然可走
+  }
+  return null
+}
+
+export const parseByDouyinDirect = async (shareUrl, outerSignal) => {
+  const cleanUrl = typeof shareUrl === 'string' ? shareUrl.trim() : ''
+  if (!cleanUrl) throw new Error('链接为空')
+
+  const { signal, dispose } = withTimeout(outerSignal, DOUYIN_TIMEOUT_MS)
+  try {
+    const toHttps = (u) => (typeof u === 'string' ? u.trim().replace(/^http:\/\//i, 'https://') : '')
+
+    // 1. 从分享文案中提取目标 URL
+    const urlMatch = cleanUrl.match(/https?:\/\/(?:v\.douyin\.com\/[a-zA-Z0-9_\/]+|(?:www\.|m\.)?(?:iesdouyin|douyin)\.com\/(?:share\/)?(?:video|slides|note)\/\d+|www\.douyin\.com\/\d+)/i)
+      || cleanUrl.match(/https?:\/\/[^\s<>"']+/i)
+    const targetUrl = urlMatch ? urlMatch[0] : cleanUrl
+
+    // 2. 先尝试直接从 URL 匹配 aweme_id
+    let awemeId = null
+    const directIdMatch = targetUrl.match(/\/(?:video|slides|note)\/(\d+)/i) || targetUrl.match(/iesdouyin\.com\/(?:share\/)?video\/(\d+)/i)
+    if (directIdMatch) {
+      awemeId = directIdMatch[1]
+    }
+
+    // 3. 异步获取 ttwid 凭据
+    const ttwidPromise = fetchTtwid(signal)
+
+    // 若无 awemeId，则跟随短链重定向
+    if (!awemeId) {
+      const firstRes = await fetch(targetUrl, {
+        method: 'GET',
+        signal,
+        headers: {
+          'User-Agent': DOUYIN_UA,
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+        },
+        redirect: 'follow'
+      })
+      const finalUrl = firstRes.url || targetUrl
+      const finalIdMatch = finalUrl.match(/\/(?:video|slides|note)\/(\d+)/i)
+      if (finalIdMatch) {
+        awemeId = finalIdMatch[1]
+      }
+    }
+
+    if (!awemeId) {
+      throw new Error('未能在抖音链接中识别出作品 ID')
+    }
+
+    const ttwid = await ttwidPromise
+    const headers = {
+      'User-Agent': DOUYIN_UA,
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+    }
+    if (ttwid) {
+      headers['Cookie'] = `ttwid=${ttwid}`
+    }
+
+    const pageUrl = `https://www.iesdouyin.com/share/video/${awemeId}/`
+    const pageRes = await fetch(pageUrl, {
+      method: 'GET',
+      signal,
+      headers
+    })
+    if (!pageRes.ok) throw new Error(`抖音页面请求失败(HTTP ${pageRes.status})`)
+    const html = await pageRes.text()
+
+    // 4. 解析页面内嵌 _ROUTER_DATA / RENDER_DATA
+    const routerMatch = html.match(/window\._ROUTER_DATA\s*=\s*(\{.*?\});?\s*<\/script>/)
+      || html.match(/<script\s+id="RENDER_DATA"\s+type="application\/json"[^>]*>(.*?)<\/script>/)
+    if (!routerMatch) {
+      throw new Error('未在抖音页面中找到有效数据结构')
+    }
+
+    let parsed = null
+    try {
+      let rawJson = routerMatch[1]
+      if (rawJson.startsWith('%7B') || rawJson.startsWith('%7b')) {
+        rawJson = decodeURIComponent(rawJson)
+      }
+      parsed = JSON.parse(rawJson)
+    } catch (e) {
+      throw new Error('解析抖音页面数据失败')
+    }
+
+    // 5. 定位 itemStruct / item_list
+    let item = null
+    const pageKey = Object.keys(parsed?.loaderData || {}).find(k => k.includes('page'))
+    if (pageKey && parsed.loaderData[pageKey]?.videoInfoRes?.item_list?.[0]) {
+      item = parsed.loaderData[pageKey].videoInfoRes.item_list[0]
+    } else {
+      const walk = (obj) => {
+        if (!obj || typeof obj !== 'object') return null
+        if (obj.desc && (obj.video || obj.images)) return obj
+        for (const k of Object.keys(obj)) {
+          const res = walk(obj[k])
+          if (res) return res
+        }
+        return null
+      }
+      item = walk(parsed)
+    }
+
+    if (!item) {
+      throw new Error('未获取到该抖音视频/图文详细信息')
+    }
+
+    const title = item.desc || item.share_info?.share_title || '抖音作品'
+    const desc = item.desc || ''
+    const author = {
+      name: item.author?.nickname || item.author?.unique_id || '抖音创作者',
+      avatar: toHttps(item.author?.avatar_thumb?.url_list?.[0] || item.author?.avatar_medium?.url_list?.[0] || '')
+    }
+
+    // 处理无水印视频地址：替换 playwm -> play
+    let rawPlayUrl = item.video?.play_addr?.url_list?.[0] || item.video?.playAddr?.url_list?.[0] || null
+    let mainVideo = rawPlayUrl ? toHttps(rawPlayUrl.replace(/\/playwm\//g, '/play/').replace(/playwm/g, 'play')) : null
+
+    // 备用播放地址
+    const videoBackup = []
+    const rawPlayList = item.video?.play_addr?.url_list || []
+    for (const u of rawPlayList) {
+      const fixed = toHttps(u.replace(/\/playwm\//g, '/play/').replace(/playwm/g, 'play'))
+      if (fixed && fixed !== mainVideo) {
+        videoBackup.push({ url: fixed })
+      }
+    }
+
+    // 处理图集原图
+    const rawImages = Array.isArray(item.images)
+      ? item.images.map(img => toHttps(img?.url_list?.[0] || (typeof img === 'string' ? img : ''))).filter(Boolean)
+      : []
+
+    const cover = toHttps(item.video?.cover?.url_list?.[0] || rawImages[0] || '')
+    const musicUrl = toHttps(item.music?.play_url?.url_list?.[0] || '')
+    const isVideo = !!mainVideo && rawImages.length === 0
+
+    return {
+      type: isVideo ? 'video' : 'image',
+      title,
+      desc,
+      author,
+      cover,
+      url: mainVideo,
+      quality: 'HD',
+      duration: item.duration ? Math.round(item.duration / 1000) : null,
+      images: isVideo ? [] : rawImages,
+      live_photo: [],
+      video_backup: videoBackup,
+      music: musicUrl ? { title: item.music?.title || '', url: musicUrl } : {},
+      extra: { source: 'douyindirect', sourceName: '抖音专线' }
+    }
+  } catch (err) {
+    if (err?.name === 'AbortError') throw new Error('抖音专线响应超时')
+    throw err
+  } finally {
+    dispose()
+  }
+}
+
+/* ============================ 线路六：并发竞速调度 ============================ */
 export const raceParse = async (shareUrl, signal, racers) => {
   const active = (racers || []).filter(r => !(typeof r.skip === 'function' && r.skip()))
   if (active.length === 0) throw new Error('当前没有可用的解析线路')
@@ -584,6 +779,7 @@ export default {
   parseByBugPk,
   parseByXiaoLvFang,
   parseByXhsDirect,
+  parseByDouyinDirect,
   raceParse,
   isXlfCoolingDown
 }

@@ -20,6 +20,7 @@ import {
   parseByBugPk,
   parseByXiaoLvFang,
   parseByXhsDirect,
+  parseByDouyinDirect,
   raceParse,
   isXlfCoolingDown,
   AVAILABLE_SOURCES
@@ -390,12 +391,15 @@ const parseVideo = async () => {
       if (currentSource.value === 'auto') {
         // 智能并发竞速模式：全开
         resultData = await raceParse(url, signal, [
+          { name: '抖音专线', run: (u, s) => parseByDouyinDirect(u, s), skip: () => !/douyin\.com|iesdouyin\.com/.test(inputUrl.value) },
           { name: '小红书专线', run: (u, s) => parseByXhsDirect(u, s), skip: () => !/xhslink\.cn|xiaohongshu\.com/.test(inputUrl.value) },
           { name: '凌云聚合源', run: (u, s) => parseByLayzz(u, s) },
           { name: '杂草极速源', run: (u, s) => parseByZacao(u, s) },
           { name: 'BugPK经典源', run: (u, s) => parseByBugPk(u, s, currentPlatform.value) },
           { name: '效率坊备用', run: (u, s) => parseByXiaoLvFang(u, s), skip: () => isXlfCoolingDown() }
         ])
+      } else if (currentSource.value === 'douyindirect') {
+        resultData = await parseByDouyinDirect(url, signal)
       } else if (currentSource.value === 'xhsdirect') {
         resultData = await parseByXhsDirect(url, signal)
       } else if (currentSource.value === 'layzz') {
@@ -408,6 +412,7 @@ const parseVideo = async () => {
         resultData = await parseByXiaoLvFang(url, signal)
       } else {
         resultData = await raceParse(url, signal, [
+          { name: '抖音专线', run: (u, s) => parseByDouyinDirect(u, s), skip: () => !/douyin\.com|iesdouyin\.com/.test(inputUrl.value) },
           { name: '小红书专线', run: (u, s) => parseByXhsDirect(u, s), skip: () => !/xhslink\.cn|xiaohongshu\.com/.test(inputUrl.value) },
           { name: '凌云聚合源', run: (u, s) => parseByLayzz(u, s) },
           { name: '杂草极速源', run: (u, s) => parseByZacao(u, s) },
@@ -487,7 +492,7 @@ const getDownloadHeaders = (targetUrl) => {
       'User-Agent': 'Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
     }
   }
-  if (/douyin\.com|iesdouyin\.com|aweme/i.test(u)) {
+  if (/douyin\.com|iesdouyin\.com|douyinvod\.com|douyinpic\.com|snssdk\.com|aweme/i.test(u)) {
     return {
       'Referer': 'https://www.douyin.com/',
       'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1'
