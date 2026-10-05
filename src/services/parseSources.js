@@ -14,7 +14,8 @@ export const AVAILABLE_SOURCES = [
   { key: 'layzz', name: '凌云聚合源', badge: '全能 · 30+平台', icon: 'fa-cloud', desc: '支持抖音/小红书/快手/B站超清图文与视频' },
   { key: 'zacao', name: '杂草极速源', badge: '图文/直链专精', icon: 'fa-seedling', desc: '专精小红书图文与主流短视频直链' },
   { key: 'bugpk', name: 'BugPK 经典源', badge: '经典公共接口', icon: 'fa-cube', desc: '老牌短视频去水印公共接口' },
-  { key: 'xiaolvfang', name: '效率坊备用', badge: '独立备用节点', icon: 'fa-shield-halved', desc: '独立图文与视频备用解析线路' }
+  { key: 'xiaolvfang', name: '效率坊备用', badge: '独立备用节点', icon: 'fa-shield-halved', desc: '独立图文与视频备用解析线路' },
+  { key: 'xhsdirect', name: '小红书专线', badge: '自研直解 · 突破登录', icon: 'fa-cube', desc: '自研密钥直解算法，突破小红书 .cn 登录墙与404' }
 ]
 
 const ZACAO_ENDPOINT = 'https://video.zacao.top/api/parse'
@@ -374,6 +375,171 @@ export const parseByXiaoLvFang = async (shareUrl, outerSignal) => {
   }
 }
 
+/* ============================ 线路六：小红书自研直解 (XhsDirect) ============================ */
+const XHS_TIMEOUT_MS = 15000
+const XHS_UA = 'Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
+
+export const parseByXhsDirect = async (shareUrl, outerSignal) => {
+  let cleanUrl = typeof shareUrl === 'string' ? shareUrl.trim() : ''
+  if (!cleanUrl) throw new Error('链接为空')
+
+  const matchUrl = cleanUrl.match(/\bhttps?:\/\/[^\s<>"{}|\\^`\[\]\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]+/i)
+  if (matchUrl) {
+    cleanUrl = matchUrl[0].replace(/[),.;!?，。；！？]+$/, '')
+  }
+
+  const { signal, dispose } = withTimeout(outerSignal, XHS_TIMEOUT_MS)
+  try {
+    const firstRes = await fetch(cleanUrl, {
+      method: 'GET',
+      signal,
+      headers: {
+        'User-Agent': XHS_UA,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+      },
+      redirect: 'follow'
+    })
+
+    const finalUrl = firstRes.url || cleanUrl
+
+    let targetUrl = finalUrl
+    if (targetUrl.includes('redirectPath=')) {
+      const match = targetUrl.match(/redirectPath=([^&]+)/)
+      if (match) {
+        try {
+          targetUrl = decodeURIComponent(match[1])
+        } catch (e) {
+          targetUrl = match[1]
+        }
+      }
+    }
+
+    let decodedTarget = targetUrl
+    try {
+      decodedTarget = decodeURIComponent(targetUrl)
+    } catch (e) {}
+
+    const itemMatch = decodedTarget.match(/(?:discovery\/item|explore)\/([a-zA-Z0-9]+)/) || targetUrl.match(/(?:discovery\/item|explore)\/([a-zA-Z0-9]+)/)
+    const itemId = itemMatch ? itemMatch[1] : null
+
+    const tokenMatch = decodedTarget.match(/xsec_token=([^&]+)/) || targetUrl.match(/xsec_token=([^&]+)/)
+    let xsecToken = tokenMatch ? tokenMatch[1] : ''
+    try {
+      xsecToken = decodeURIComponent(xsecToken)
+    } catch (e) {}
+
+    let html = ''
+    if (itemId) {
+      const realUrl = `https://www.xiaohongshu.com/discovery/item/${itemId}?app_platform=android&xsec_token=${encodeURIComponent(xsecToken)}&xsec_source=app_share`
+      const realRes = await fetch(realUrl, {
+        method: 'GET',
+        signal,
+        headers: {
+          'User-Agent': XHS_UA,
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+        }
+      })
+      if (!realRes.ok) throw new Error(`小红书页面请求失败(HTTP ${realRes.status})`)
+      html = await realRes.text()
+    } else {
+      if (!firstRes.ok) throw new Error(`小红书请求失败(HTTP ${firstRes.status})`)
+      html = await firstRes.text()
+    }
+
+    const stateMatch = html.match(/window\.__INITIAL_STATE__\s*=\s*(\{.+?\})<\/script>/) || html.match(/window\.__INITIAL_STATE__\s*=\s*(\{[\s\S]+?\})<\/script>/)
+    if (!stateMatch) {
+      throw new Error('未在小红书页面中找到状态数据(__INITIAL_STATE__)')
+    }
+
+    let data = null
+    try {
+      const sanitized = stateMatch[1].replace(/:undefined/g, ':null')
+      data = JSON.parse(sanitized)
+    } catch (e) {
+      throw new Error('解析小红书状态数据失败')
+    }
+
+    const note = data?.noteData?.data?.noteData || data?.noteData || data?.note
+    if (!note) {
+      throw new Error('未获取到小红书笔记数据')
+    }
+
+    const title = note.title || note.desc || ''
+    const desc = note.desc || note.title || ''
+    const author = {
+      name: note.user?.nickName || note.user?.name || '小红书创作者',
+      avatar: note.user?.avatar || ''
+    }
+
+    const toHttps = (url) => (typeof url === 'string' ? url.trim().replace(/^http:\/\//i, 'https://') : '')
+
+    const rawImages = Array.isArray(note.imageList)
+      ? note.imageList.map(img => toHttps(typeof img === 'string' ? img : (img?.url || ''))).filter(Boolean)
+      : []
+
+    let mediaV2 = note.video?.mediaV2
+    if (typeof mediaV2 === 'string') {
+      try {
+        mediaV2 = JSON.parse(mediaV2)
+      } catch (e) {
+        mediaV2 = null
+      }
+    }
+
+    const stream = mediaV2?.stream || {}
+    let mainVideo = stream.h264?.[0]?.master_url || stream.h265?.[0]?.master_url || null
+    if (mainVideo) {
+      mainVideo = toHttps(mainVideo)
+    }
+
+    const rawBackup = [
+      ...(Array.isArray(stream.h264?.[0]?.backup_urls) ? stream.h264[0].backup_urls : []),
+      ...(stream.h265?.[0]?.master_url && stream.h265[0].master_url !== mainVideo ? [stream.h265[0].master_url] : []),
+      ...(Array.isArray(stream.h265?.[0]?.backup_urls) ? stream.h265[0].backup_urls : [])
+    ]
+    const seenBackup = new Set()
+    const videoBackup = []
+    for (const b of rawBackup) {
+      let u = typeof b === 'string' ? b.trim() : (b?.url || '').trim()
+      if (u) {
+        u = toHttps(u)
+        if (!seenBackup.has(u) && u !== mainVideo) {
+          seenBackup.add(u)
+          videoBackup.push({ url: u })
+        }
+      }
+    }
+
+    const images = (mainVideo ? [] : rawImages).map(toHttps)
+    const cover = toHttps(note.cover?.url || rawImages[0] || '')
+
+    if (!mainVideo && images.length === 0) {
+      throw new Error('未返回可用媒体直链')
+    }
+
+    return {
+      type: mainVideo ? 'video' : 'image',
+      title,
+      desc,
+      author,
+      cover,
+      url: mainVideo,
+      quality: 'HD',
+      duration: null,
+      images,
+      live_photo: [],
+      video_backup: videoBackup,
+      music: {},
+      extra: { source: 'xhsdirect', sourceName: '小红书专线' }
+    }
+  } catch (err) {
+    if (err?.name === 'AbortError') throw new Error('小红书专线响应超时')
+    throw err
+  } finally {
+    dispose()
+  }
+}
+
 /* ============================ 线路五：并发竞速调度 ============================ */
 export const raceParse = async (shareUrl, signal, racers) => {
   const active = (racers || []).filter(r => !(typeof r.skip === 'function' && r.skip()))
@@ -417,6 +583,7 @@ export default {
   parseByZacao,
   parseByBugPk,
   parseByXiaoLvFang,
+  parseByXhsDirect,
   raceParse,
   isXlfCoolingDown
 }

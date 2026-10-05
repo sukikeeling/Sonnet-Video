@@ -387,6 +387,8 @@ const toggleSection = (key) => {
             <video
               :src="currentVideoUrl || resultData.url"
               controls
+              playsinline
+              webkit-playsinline
               referrerpolicy="no-referrer"
               class="rs-video"
               :poster="resultData.cover || undefined"
@@ -518,6 +520,8 @@ const toggleSection = (key) => {
                     :src="resultData.live_photo[activeLiveIndex]?.video"
                     :poster="resultData.live_photo[activeLiveIndex]?.image"
                     controls
+                    playsinline
+                    webkit-playsinline
                     referrerpolicy="no-referrer"
                     class="rs-live-carousel-video"
                   >
@@ -856,25 +860,25 @@ const toggleSection = (key) => {
   --c-warn: #f59e0b;
   --c-warn-light: #fbbf24;
   --c-info: #06b6d4;
-  /* surfaces */
-  --c-bg: #fff;
-  --c-bg-2: #f8fafc;
-  --c-bg-3: #f1f5f9;
-  --c-bg-elevated: #ffffff;
-  --c-fg: #0f172a;
-  --c-fg-2: #475569;
+  /* surfaces - 配合暗黑毛玻璃调性，杜绝大白方块突兀违和 */
+  --c-bg: rgba(15, 23, 42, 0.75);
+  --c-bg-2: rgba(30, 41, 59, 0.75);
+  --c-bg-3: rgba(51, 65, 85, 0.65);
+  --c-bg-elevated: rgba(30, 41, 59, 0.75);
+  --c-fg: #f1f5f9;
+  --c-fg-2: #cbd5e1;
   --c-fg-3: #94a3b8;
-  --c-fg-4: #cbd5e1;
-  --c-border: #e2e8f0;
-  --c-border-2: #f1f5f9;
-  --c-border-light: #f8fafc;
+  --c-fg-4: #64748b;
+  --c-border: rgba(255, 255, 255, 0.1);
+  --c-border-2: rgba(255, 255, 255, 0.06);
+  --c-border-light: rgba(255, 255, 255, 0.15);
   /* shadows */
-  --sh-sm: 0 1px 2px rgba(0,0,0,.03);
-  --sh-md: 0 4px 12px rgba(0,0,0,.06);
-  --sh-lg: 0 8px 28px rgba(0,0,0,.08);
-  --sh-xl: 0 16px 48px rgba(0,0,0,.12);
-  --sh-2xl: 0 24px 72px rgba(0,0,0,.16);
-  --sh-glow: 0 0 40px rgba(108,92,231,.15);
+  --sh-sm: 0 1px 2px rgba(0,0,0,.2);
+  --sh-md: 0 4px 12px rgba(0,0,0,.25);
+  --sh-lg: 0 8px 28px rgba(0,0,0,.35);
+  --sh-xl: 0 16px 48px rgba(0,0,0,.45);
+  --sh-2xl: 0 24px 72px rgba(0,0,0,.5);
+  --sh-glow: 0 0 40px rgba(108,92,231,.25);
   /* radii */
   --r-sm: .5rem;
   --r-md: .75rem;
@@ -899,24 +903,26 @@ const toggleSection = (key) => {
   padding: 0 1rem;
   font-family: inherit;
   color: var(--c-fg);
-  background: linear-gradient(180deg, rgba(108,92,231,.02) 0%, rgba(168,85,247,.01) 100%);
+  background: linear-gradient(180deg, rgba(108,92,231,.08) 0%, rgba(168,85,247,.04) 100%);
   border-radius: var(--r-2xl);
   padding: 1.5rem;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 /* dark mode overrides */
 :global(.dark) .rs {
-  --c-bg: #0f172a;
-  --c-bg-2: #1e293b;
-  --c-bg-3: #334155;
-  --c-bg-elevated: #1e293b;
+  --c-bg: rgba(15, 23, 42, 0.85);
+  --c-bg-2: rgba(30, 41, 59, 0.85);
+  --c-bg-3: rgba(51, 65, 85, 0.75);
+  --c-bg-elevated: rgba(30, 41, 59, 0.85);
   --c-fg: #f1f5f9;
   --c-fg-2: #cbd5e1;
   --c-fg-3: #94a3b8;
   --c-fg-4: #64748b;
-  --c-border: #334155;
-  --c-border-2: #1e293b;
-  --c-border-light: #334155;
+  --c-border: rgba(255, 255, 255, 0.12);
+  --c-border-2: rgba(255, 255, 255, 0.08);
+  --c-border-light: rgba(255, 255, 255, 0.18);
   --sh-sm: 0 1px 2px rgba(0,0,0,.2);
   --sh-md: 0 4px 12px rgba(0,0,0,.25);
   --sh-lg: 0 8px 28px rgba(0,0,0,.35);
@@ -1079,7 +1085,8 @@ const toggleSection = (key) => {
   font-size: 1.125rem;
   font-weight: 700;
   line-height: 1.45;
-  color: var(--c-fg);
+  color: #f8fafc;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
   word-break: break-word;
 }
 
@@ -1139,6 +1146,8 @@ const toggleSection = (key) => {
    ═══════════════════════════════════════════════════════════════ */
 .rs-card {
   background: var(--c-bg-elevated);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--c-border);
   border-radius: var(--r-xl);
   box-shadow: var(--sh-md);

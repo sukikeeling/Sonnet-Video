@@ -19,6 +19,7 @@ import {
   parseByLayzz,
   parseByBugPk,
   parseByXiaoLvFang,
+  parseByXhsDirect,
   raceParse,
   isXlfCoolingDown,
   AVAILABLE_SOURCES
@@ -389,11 +390,14 @@ const parseVideo = async () => {
       if (currentSource.value === 'auto') {
         // 智能并发竞速模式：全开
         resultData = await raceParse(url, signal, [
+          { name: '小红书专线', run: (u, s) => parseByXhsDirect(u, s), skip: () => !/xhslink\.cn|xiaohongshu\.com/.test(inputUrl.value) },
           { name: '凌云聚合源', run: (u, s) => parseByLayzz(u, s) },
           { name: '杂草极速源', run: (u, s) => parseByZacao(u, s) },
           { name: 'BugPK经典源', run: (u, s) => parseByBugPk(u, s, currentPlatform.value) },
           { name: '效率坊备用', run: (u, s) => parseByXiaoLvFang(u, s), skip: () => isXlfCoolingDown() }
         ])
+      } else if (currentSource.value === 'xhsdirect') {
+        resultData = await parseByXhsDirect(url, signal)
       } else if (currentSource.value === 'layzz') {
         resultData = await parseByLayzz(url, signal)
       } else if (currentSource.value === 'zacao') {
@@ -404,6 +408,7 @@ const parseVideo = async () => {
         resultData = await parseByXiaoLvFang(url, signal)
       } else {
         resultData = await raceParse(url, signal, [
+          { name: '小红书专线', run: (u, s) => parseByXhsDirect(u, s), skip: () => !/xhslink\.cn|xiaohongshu\.com/.test(inputUrl.value) },
           { name: '凌云聚合源', run: (u, s) => parseByLayzz(u, s) },
           { name: '杂草极速源', run: (u, s) => parseByZacao(u, s) },
           { name: 'BugPK经典源', run: (u, s) => parseByBugPk(u, s, currentPlatform.value) },
@@ -474,6 +479,31 @@ const handleReparseFromHistory = (item) => {
   parseVideo()
 }
 
+const getDownloadHeaders = (targetUrl) => {
+  const u = typeof targetUrl === 'string' ? targetUrl : ''
+  if (/xhscdn\.com|xiaohongshu\.com/i.test(u)) {
+    return {
+      'Referer': 'https://www.xiaohongshu.com/',
+      'User-Agent': 'Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
+    }
+  }
+  if (/douyin\.com|iesdouyin\.com|aweme/i.test(u)) {
+    return {
+      'Referer': 'https://www.douyin.com/',
+      'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1'
+    }
+  }
+  if (/kuaishou\.com|kwai/i.test(u)) {
+    return {
+      'Referer': 'https://www.kuaishou.com/',
+      'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1'
+    }
+  }
+  return {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+  }
+}
+
 const downloadFile = async (url, filename, downloadId, options = {}) => {
   if (!url) return 'failed'
   const abortController = new AbortController()
@@ -495,10 +525,7 @@ const downloadFile = async (url, filename, downloadId, options = {}) => {
         path: `sonnet/${filename || 'download'}`,
         directory: dir,
         recursive: true,
-        headers: {
-          'Referer': 'https://www.douyin.com/',
-          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1'
-        }
+        headers: getDownloadHeaders(url)
       })
 
       const savedPath = `文档/sonnet/${filename || 'download'}`

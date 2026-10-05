@@ -1,6 +1,6 @@
 {
   "name": "sonnet-video",
-  "version": "1.0.0",
+  "version": "3.0.0",
   "private": true,
   "description": "Sonnet - 短视频去水印解析工具",
   "type": "module",
