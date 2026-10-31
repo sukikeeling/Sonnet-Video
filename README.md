@@ -199,3 +199,7 @@ Copyright (c) 2025 Sonnet（二次开发）
 ---
 
 > 💝 如果这个项目对你有帮助，欢迎给上游项目 [BK-SV v3.0](https://github.com/jiuhunwl/shortvideo-html) 一个 ⭐
+
+## 仓库声明
+
+本仓库的署名与参考规范见 [NOTICE](NOTICE)：参考、借鉴或改造本仓库时，请标明来源 sukikeeling/Sonnet-Video。
